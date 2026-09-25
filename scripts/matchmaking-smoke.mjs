@@ -6,13 +6,13 @@ const base = process.argv[2] || 'http://127.0.0.1:8000/';
 const code = `Q${Date.now().toString(36).toUpperCase().slice(-7)}`;
 const errors = [];
 
-function url(room, skip = []) {
+function url(room, skip = null) {
   const target = new URL(base);
   if (target.hostname === 'localhost' || target.hostname === '127.0.0.1') {
     target.searchParams.set('backend', 'playhtml');
   }
   if (room) target.searchParams.set('room', room);
-  if (skip.length) {
+  if (skip !== null) {
     target.searchParams.set('quick', '1');
     target.searchParams.set('skip', skip.join(','));
   }
@@ -26,10 +26,15 @@ async function newPage() {
 }
 
 try {
+  const directory = await newPage();
+  await directory.goto(new URL('watch.html', base).href);
+  await directory.locator('#lobby-status').getByText(/Danh sách tự cập nhật/).waitFor({ timeout: 60000 });
+  const occupied = await directory.locator('.room-code').allTextContents();
+  await directory.close();
+
   const seeker = await newPage();
   await seeker.setViewportSize({ width: 390, height: 844 });
-  await seeker.goto(url());
-  await seeker.locator('#quick-match').click();
+  await seeker.goto(url(null, occupied));
   await seeker.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
   await seeker.waitForTimeout(2200);
   assert.equal(new URL(seeker.url()).searchParams.has('room'), false);
@@ -46,13 +51,13 @@ try {
   await host.close();
 
   const first = await newPage();
-  await first.goto(url(null, [code]));
+  await first.goto(url(null, [...occupied, code]));
   await first.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
   await first.waitForTimeout(2200);
   assert.equal(new URL(first.url()).searchParams.has('room'), false);
 
   const second = await newPage();
-  await second.goto(url(null, [code]));
+  await second.goto(url(null, [...occupied, code]));
   await first.locator('#role-label').getByText(/PHE XANH/).waitFor({ timeout: 60000 });
   await second.locator('#role-label').getByText(/PHE ĐỎ/).waitFor({ timeout: 60000 });
   const pairedRoom = new URL(first.url()).searchParams.get('room');
@@ -62,7 +67,7 @@ try {
   await second.close();
 
   const cancel = await newPage();
-  await cancel.goto(url(null, [code, pairedRoom]));
+  await cancel.goto(url(null, [...occupied, code, pairedRoom]));
   await cancel.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
   await cancel.locator('#cancel-quick').click();
   await cancel.waitForURL((value) => !value.searchParams.has('quick'));
