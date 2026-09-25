@@ -1,6 +1,7 @@
 import { applyMove, BOARD_SIZE, legalMoves, newGame, pieceCounts, SIDE_LABEL, squareName, TYPE_LABEL, TYPES } from './rules.js';
 import { OnlineSession, joinPlayhtmlPresence } from './online.js';
 import { PlayhtmlSession } from './playhtml-session.js';
+import { createLobbyAnnouncer } from './lobby-presence.js';
 
 const $ = (selector) => document.querySelector(selector);
 const els = {
@@ -22,6 +23,11 @@ const ICON = {
   paper: '<rect x="7" y="3" width="14" height="20" rx="2"/><path d="M10 8h8M10 12h8M10 16h6"/>',
   scissors: '<circle cx="7" cy="7" r="3"/><circle cx="7" cy="19" r="3"/><path d="m10 9 12 11M10 17 22 4"/>',
 };
+const pageParams = new URLSearchParams(location.search);
+const spectatorOnly = pageParams.get('spectate') === '1';
+const embedded = pageParams.get('embed') === '1';
+document.body.classList.toggle('is-embed', embedded);
+document.body.classList.toggle('is-spectator', spectatorOnly);
 
 let mode = null;
 let game = null;
@@ -33,6 +39,8 @@ let pendingMove = false;
 let toastTimer = null;
 let playhtmlStarted = false;
 let presenceRoom = null;
+let partyLobbyAnnouncer = null;
+let partyPresencePending = false;
 let connectionStatus = 'Sẵn sàng';
 let offlineRound = 1;
 
@@ -70,7 +78,7 @@ function mySide() {
 }
 
 function canAct() {
-  if (!game || game.winner || pendingMove) return false;
+  if (!game || game.winner || pendingMove || spectatorOnly) return false;
   if (mode === 'offline') return true;
   const seats = onlineState?.seats;
   return connectionStatus === 'Đã kết nối' && onlineState?.role === game.turn &&
@@ -84,7 +92,13 @@ function showGame() {
 }
 
 function showHome() {
+  if (spectatorOnly) {
+    location.assign('./');
+    return;
+  }
   session?.close();
+  partyLobbyAnnouncer?.close();
+  partyLobbyAnnouncer = null;
   session = null;
   mode = null;
   game = null;
@@ -101,6 +115,8 @@ function showHome() {
 
 function startOffline() {
   session?.close();
+  partyLobbyAnnouncer?.close();
+  partyLobbyAnnouncer = null;
   session = null;
   mode = 'offline';
   room = null;
@@ -119,7 +135,7 @@ function startOnline(code) {
     notify('Mã phòng cần có 4–12 chữ hoặc số.');
     return;
   }
-  const name = savedName();
+  const name = spectatorOnly ? 'Khán giả' : savedName();
   const params = new URLSearchParams(location.search);
   const usePartyKit = params.has('server') ||
     (params.get('backend') !== 'playhtml' &&
@@ -131,6 +147,8 @@ function startOnline(code) {
     return;
   }
   session?.close();
+  partyLobbyAnnouncer?.close();
+  partyLobbyAnnouncer = null;
   mode = 'online';
   room = code;
   game = null;
@@ -147,7 +165,8 @@ function startOnline(code) {
   session = new Session({
     room: code,
     name,
-    token: identityFor(code),
+    token: spectatorOnly ? crypto.randomUUID() : identityFor(code),
+    spectatorOnly,
     onState: (state) => {
       const revisionChanged = game?.revision !== state.game.revision || onlineState?.round !== state.round;
       onlineState = state;
@@ -155,12 +174,26 @@ function startOnline(code) {
       if (revisionChanged) selected = null;
       pendingMove = false;
       render();
-      if (usePartyKit && !playhtmlStarted) {
-        playhtmlStarted = true;
-        presenceRoom = code;
-        joinPlayhtmlPresence(code, name).catch((error) => {
-          console.warn('PlayHTML presence:', error);
-        });
+      if (embedded) parent.postMessage({
+        type: 'ottv2-snapshot', room: code, revision: game.revision,
+        winner: game.winner, turn: game.turn, board: game.board,
+        lastMove: game.lastMove, seats: state.seats,
+      }, location.origin);
+      if (usePartyKit && !spectatorOnly) {
+        if (!partyLobbyAnnouncer && !partyPresencePending) {
+          partyPresencePending = true;
+          playhtmlStarted = true;
+          presenceRoom = code;
+          joinPlayhtmlPresence(code, name).then((playhtml) => {
+            partyPresencePending = false;
+            if (mode !== 'online' || room !== code) return;
+            partyLobbyAnnouncer = createLobbyAnnouncer(playhtml, code, name);
+            partyLobbyAnnouncer.update(onlineState?.role);
+          }).catch((error) => {
+            partyPresencePending = false;
+            console.warn('PlayHTML presence:', error);
+          });
+        } else partyLobbyAnnouncer?.update(state.role);
       } else if (!usePartyKit) {
         playhtmlStarted = true;
         presenceRoom = code;
@@ -270,16 +303,16 @@ function renderStatus() {
   els.role.textContent = mode === 'offline' ? 'CHẾ ĐỘ OFFLINE · CÙNG MỘT MÁY'
     : onlineState?.role ? `BẠN CẦM PHE ${SIDE_LABEL[onlineState.role].toUpperCase()}`
       : `KHÁN GIẢ · ${onlineState?.spectators ?? 0} NGƯỜI XEM`;
-  els.claimActions.hidden = mode !== 'online' || Boolean(onlineState?.role);
+  els.claimActions.hidden = spectatorOnly || mode !== 'online' || Boolean(onlineState?.role);
   els.claimBlue.hidden = !(onlineState?.seats?.p1?.available ?? true);
   els.claimRed.hidden = !(onlineState?.seats?.p2?.available ?? true);
-  els.rematch.hidden = mode === 'online' && !onlineState?.role;
+  els.rematch.hidden = spectatorOnly || (mode === 'online' && !onlineState?.role);
   els.rematch.textContent = game.winner
     ? mode === 'online' && onlineState?.rematchVotes?.includes(onlineState.role)
       ? 'Đã đề nghị · chờ đối thủ' : 'Chơi ván mới'
     : mode === 'offline' ? 'Bắt đầu lại' : 'Chơi ván mới';
   els.rematch.disabled = mode === 'online' && (!game.winner || onlineState?.rematchVotes?.includes(onlineState.role));
-  els.leave.hidden = mode !== 'online' || !onlineState?.role;
+  els.leave.hidden = spectatorOnly || mode !== 'online' || !onlineState?.role;
 }
 
 function renderLog() {

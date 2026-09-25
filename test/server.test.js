@@ -52,3 +52,23 @@ test('máy chủ cấp hai ghế, khán giả không thể đi và nước đi �
   assert.equal(a.latest('state').game.revision, 1);
   assert.equal(a.latest('error').message.includes('đã đổi'), true);
 });
+
+test('khán giả chỉ xem không tự giữ ghế và không thể nhận ghế', async () => {
+  const { room, connect, send } = harness();
+  await room.onStart();
+  const watcher = connect('watcher');
+  await send(watcher, {
+    type: 'hello', token: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    name: 'Khán giả', spectatorOnly: true,
+  });
+  assert.equal(watcher.latest('state').role, null);
+  assert.equal(watcher.latest('state').seats.p1, null);
+  await send(watcher, { type: 'claim', side: 'p1' });
+  assert.equal(watcher.latest('state').seats.p1, null);
+  const player = connect('player');
+  await send(player, {
+    type: 'hello', token: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', name: 'An',
+  });
+  assert.equal(player.latest('state').role, 'p1');
+  assert.equal(watcher.latest('state').role, null);
+});

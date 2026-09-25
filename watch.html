@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ece9df" />
+    <meta name="description" content="Xem trực tiếp tối đa bốn trận OTTv2 trên cùng một màn hình." />
+    <title>Xem trận trực tiếp — OTTv2</title>
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./watch.css" />
+    <script type="module" src="./watch.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="OTTv2, về trang chủ">ott<span>v2</span><i></i></a>
+      <nav class="site-nav" aria-label="Điều hướng">
+        <a href="./">← Chơi OTTv2</a>
+        <span class="edition">PHÒNG QUAN SÁT / TRỰC TIẾP</span>
+      </nav>
+    </header>
+
+    <main class="watch-page">
+      <div class="watch-intro">
+        <div>
+          <p class="overline"><span class="little-star">✳</span> OTTv2 / KHÁN ĐÀI</p>
+          <h1>Xem nước đi.<br /><em>Đọc nước cờ.</em></h1>
+        </div>
+        <p>Chọn những phòng đang có người chơi. Mở tối đa bốn trận cùng lúc; mọi bàn cờ ở đây chỉ để quan sát.</p>
+      </div>
+
+      <div class="watch-layout">
+        <aside class="watch-directory" aria-label="Các phòng đang hoạt động">
+          <div class="watch-section-head">
+            <div><span class="panel-number">01 / SẢNH TRẬN</span><h2>Đang diễn ra</h2></div>
+            <span id="live-count" class="live-count">0 PHÒNG</span>
+          </div>
+          <p id="lobby-status" class="lobby-status" role="status">Đang tìm các phòng có người chơi…</p>
+          <div id="room-list" class="room-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="watch-stage" aria-label="Các trận đang xem">
+          <div class="watch-section-head">
+            <div><span class="panel-number">02 / BÀN ĐANG XEM</span><h2>Bốn góc bàn cờ</h2></div>
+            <span id="watch-count" class="watch-count">0 / 4 TRẬN</span>
+          </div>
+          <div id="watch-gallery" class="watch-gallery">
+            <div id="watch-empty" class="watch-empty">
+              <span aria-hidden="true">◈</span>
+              <strong>Chưa chọn trận nào.</strong>
+              <p>Chọn “Xem trận” từ danh sách phòng bên trái.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

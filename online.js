@@ -10,8 +10,8 @@ function socketUrl(room) {
 }
 
 export class OnlineSession {
-  constructor({ room, name, token, onState, onStatus, onError }) {
-    Object.assign(this, { room, name, token, onState, onStatus, onError });
+  constructor({ room, name, token, spectatorOnly = false, onState, onStatus, onError }) {
+    Object.assign(this, { room, name, token, spectatorOnly, onState, onStatus, onError });
     this.closed = false;
     this.attempts = 0;
     this.socket = null;
@@ -32,7 +32,7 @@ export class OnlineSession {
       if (this.closed || socket !== this.socket) return;
       this.attempts = 0;
       this.onStatus('Đã kết nối');
-      this.send({ type: 'hello', token: this.token, name: this.name });
+      this.send({ type: 'hello', token: this.token, name: this.name, spectatorOnly: this.spectatorOnly });
     });
     socket.addEventListener('message', (event) => {
       if (socket !== this.socket) return;
@@ -59,6 +59,7 @@ export class OnlineSession {
   }
 
   send(message) {
+    if (this.spectatorOnly && message.type !== 'hello') return false;
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify(message));
     return true;

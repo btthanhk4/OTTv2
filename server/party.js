@@ -103,10 +103,10 @@ export default class GameRoom {
       type: 'state',
       game: this.match.game,
       seats,
-      role: this.roleFor(client.token),
+      role: client.spectatorOnly ? null : this.roleFor(client.token),
       round: this.match.round,
       rematchVotes: this.match.rematchVotes,
-      spectators: [...this.clients.values()].filter((person) => !this.roleFor(person.token)).length,
+      spectators: [...this.clients.values()].filter((person) => person.spectatorOnly || !this.roleFor(person.token)).length,
     });
   }
 
@@ -144,13 +144,14 @@ export default class GameRoom {
       const name = typeof message.name === 'string'
         ? message.name.trim().slice(0, 18) || 'Người chơi'
         : 'Người chơi';
-      this.clients.set(sender.id, { token, name });
-      const role = this.roleFor(token);
+      const spectatorOnly = message.spectatorOnly === true;
+      this.clients.set(sender.id, { token, name, spectatorOnly });
+      const role = spectatorOnly ? null : this.roleFor(token);
       if (role) {
         this.match.seats[role].name = name;
         this.match.seats[role].disconnectedAt = null;
-      } else if (this.seatAvailable('p1')) this.assignSeat('p1', token, name);
-      else if (this.seatAvailable('p2')) this.assignSeat('p2', token, name);
+      } else if (!spectatorOnly && this.seatAvailable('p1')) this.assignSeat('p1', token, name);
+      else if (!spectatorOnly && this.seatAvailable('p2')) this.assignSeat('p2', token, name);
       await this.persist();
       this.broadcastState();
       return;
@@ -158,10 +159,10 @@ export default class GameRoom {
 
     const client = this.clients.get(sender.id);
     if (!client) return;
-    const side = this.roleFor(client.token);
+    const side = client.spectatorOnly ? null : this.roleFor(client.token);
 
     if (message.type === 'claim') {
-      if (side || !['p1', 'p2'].includes(message.side) ||
+      if (client.spectatorOnly || side || !['p1', 'p2'].includes(message.side) ||
           !this.assignSeat(message.side, client.token, client.name)) {
         this.send(sender, { type: 'error', message: 'Ghế này chưa trống.' });
         return;

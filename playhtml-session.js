@@ -1,18 +1,20 @@
 import { applyMove, newGame } from './rules.js';
+import { createLobbyAnnouncer } from './lobby-presence.js';
 
 function firstMatch() {
   return { game: newGame(), seats: { p1: null, p2: null }, rematchVotes: [], round: 1 };
 }
 
 export class PlayhtmlSession {
-  constructor({ room, name, token, onState, onStatus, onError }) {
-    Object.assign(this, { room, name, token, onState, onStatus, onError });
+  constructor({ room, name, token, spectatorOnly = false, onState, onStatus, onError }) {
+    Object.assign(this, { room, name, token, spectatorOnly, onState, onStatus, onError });
     this.closed = false;
     this.optedOut = false;
     this.channel = null;
     this.playhtml = null;
     this.unsubscribe = [];
     this.claimTimer = null;
+    this.announcer = null;
   }
 
   async connect() {
@@ -22,6 +24,7 @@ export class PlayhtmlSession {
       await playhtml.init({ room: `ottv2-${this.room}` });
       if (this.closed) return;
       this.playhtml = playhtml;
+      if (!this.spectatorOnly) this.announcer = createLobbyAnnouncer(playhtml, this.room, this.name);
       playhtml.presence.setMyPresence('ottv2', {
         token: this.token, name: this.name, joinedAt: Date.now(),
       });
@@ -65,6 +68,7 @@ export class PlayhtmlSession {
   }
 
   roleFor(match) {
+    if (this.spectatorOnly) return null;
     if (match.seats.p1?.token === this.token) return 'p1';
     if (match.seats.p2?.token === this.token) return 'p2';
     return null;
@@ -80,6 +84,8 @@ export class PlayhtmlSession {
     const match = this.channel.getData();
     if (!match?.game || !match?.seats) return;
     const online = this.onlineTokens();
+    const role = this.roleFor(match);
+    this.announcer?.update(role);
     const seats = Object.fromEntries(['p1', 'p2'].map((side) => {
       const seat = match.seats[side];
       return [side, seat ? {
@@ -92,7 +98,7 @@ export class PlayhtmlSession {
       type: 'state',
       game: match.game,
       seats,
-      role: this.roleFor(match),
+      role,
       round: match.round,
       rematchVotes: match.rematchVotes,
       spectators: Math.max(0, online.size - Number(Boolean(seats.p1?.online)) - Number(Boolean(seats.p2?.online))),
@@ -101,7 +107,7 @@ export class PlayhtmlSession {
 
   scheduleAutoClaim() {
     clearTimeout(this.claimTimer);
-    if (!this.channel || this.closed || this.optedOut) return;
+    if (!this.channel || this.closed || this.optedOut || this.spectatorOnly) return;
     const match = this.channel.getData();
     if (this.roleFor(match)) return;
     const side = this.seatAvailable(match, 'p1') ? 'p1'
@@ -110,7 +116,7 @@ export class PlayhtmlSession {
   }
 
   claim(side) {
-    if (!this.channel || this.closed || !['p1', 'p2'].includes(side)) return;
+    if (!this.channel || this.closed || this.spectatorOnly || !['p1', 'p2'].includes(side)) return;
     const online = this.onlineTokens();
     this.channel.setData((draft) => {
       if (this.roleFor(draft) || !this.seatAvailable(draft, side, online)) return;
@@ -126,7 +132,7 @@ export class PlayhtmlSession {
   }
 
   send(message) {
-    if (!this.channel || this.closed) return false;
+    if (!this.channel || this.closed || this.spectatorOnly) return false;
     const match = this.channel.getData();
     const side = this.roleFor(match);
     if (message.type === 'claim') {
@@ -189,6 +195,7 @@ export class PlayhtmlSession {
     clearTimeout(this.claimTimer);
     for (const unsubscribe of this.unsubscribe) unsubscribe();
     this.channel?.destroy();
+    this.announcer?.close();
     this.playhtml?.presence.setMyPresence('ottv2', null);
   }
 }

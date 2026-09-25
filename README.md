@@ -31,6 +31,8 @@ Khi mở site ở `localhost`, game tự kết nối PartyKit cục bộ ở c�
 
 Trên GitHub Pages, chế độ online dùng [PlayHTML](https://playhtml.fun/) để đồng bộ bàn cờ và presence qua dịch vụ của thư viện. Có thể kiểm thử đường này ở máy cục bộ bằng `?backend=playhtml`. Vì trạng thái PlayHTML được ghi từ trình duyệt, đường này phù hợp chơi với bạn bè; máy chủ PartyKit là đường có xác nhận nước đi để triển khai riêng khi có host.
 
+Trang [xem trận](https://btthanhk4.github.io/OTTv2/watch.html) hiển thị các phòng đang có người chơi bằng presence của PlayHTML. Chọn tối đa bốn phòng để theo dõi cùng lúc. Các khung xem mở với vai trò khán giả, không tự chiếm ghế và không gửi thao tác chơi. Danh sách phòng biến mất khi người chơi cuối cùng rời phòng.
+
 ## Kiểm thử
 
 ```sh
@@ -40,3 +42,4 @@ npm test
 `node scripts/browser-smoke.mjs` kiểm tra giao diện, offline và PartyKit khi cả HTTP tĩnh và PartyKit đang chạy. `node scripts/playhtml-smoke.mjs` kiểm tra hai người chơi và khán giả qua PlayHTML khi HTTP tĩnh đang chạy. Bài kiểm tra trình duyệt dùng Microsoft Edge cài trên máy.
 
 Để kiểm tra trang đã xuất bản: `node scripts/playhtml-smoke.mjs https://btthanhk4.github.io/OTTv2/`.
+`node scripts/watch-smoke.mjs` kiểm tra sảnh trận, giới hạn bốn khung và kích thước ô cờ.
