@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101b2e" />
+    <title>Đấu Trường Oẳn Tù Tì</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">✊</span>
+          <div>
+            <span class="eyebrow">CỜ CHIẾN THUẬT 2 NGƯỜI</span>
+            <h1>Đấu Trường <span>Oẳn Tù Tì</span></h1>
+          </div>
+        </div>
+        <div class="room-tools">
+          <span class="room-pill">Phòng <strong id="room-code">...</strong></span>
+          <button id="copy-link" class="button button-ghost" type="button">Sao chép lời mời</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="board-panel" aria-label="Bàn cờ">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">VÁN ĐẤU TRỰC TIẾP</span>
+              <h2>Tiến tới ô đích</h2>
+            </div>
+            <span id="connection" class="connection">Đang kết nối…</span>
+          </div>
+
+          <div class="board-wrap">
+            <div class="rank-labels" aria-hidden="true">
+              <span>8</span><span>7</span><span>6</span><span>5</span>
+              <span>4</span><span>3</span><span>2</span><span>1</span>
+            </div>
+            <div id="board" class="board" role="grid" aria-label="Bàn cờ 8 nhân 8"></div>
+            <div class="file-labels" aria-hidden="true">
+              <span>a</span><span>b</span><span>c</span><span>d</span>
+              <span>e</span><span>f</span><span>g</span><span>h</span>
+            </div>
+          </div>
+
+          <div class="board-footer">
+            <span><i class="legend-dot move-dot"></i> Ô có thể đi</span>
+            <span><i class="legend-dot capture-dot"></i> Có thể ăn</span>
+            <span><i class="legend-dot goal-dot"></i> Ô chiến thắng</span>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="card status-card" aria-live="polite">
+            <span class="eyebrow">TRẠNG THÁI VÁN ĐẤU</span>
+            <h2 id="status-title">Đang tải phòng…</h2>
+            <p id="status-detail">Đang đồng bộ bàn cờ.</p>
+            <div id="turn-badge" class="turn-badge">—</div>
+          </section>
+
+          <section class="card seats-card">
+            <div class="card-heading">
+              <span class="eyebrow">NGƯỜI CHƠI</span>
+              <span id="my-role" class="my-role">Khán giả</span>
+            </div>
+            <div class="seat seat-blue">
+              <div class="seat-symbol">●</div>
+              <div class="seat-info"><strong>Xanh · Player 1</strong><small>Đích h8</small></div>
+              <span id="p1-seat" class="seat-state">Trống</span>
+            </div>
+            <div class="seat seat-red">
+              <div class="seat-symbol">●</div>
+              <div class="seat-info"><strong>Đỏ · Player 2</strong><small>Đích a1</small></div>
+              <span id="p2-seat" class="seat-state">Trống</span>
+            </div>
+            <div class="seat-actions">
+              <button id="join-p1" class="button button-blue" type="button" disabled>Nhận phe Xanh</button>
+              <button id="join-p2" class="button button-red" type="button" disabled>Nhận phe Đỏ</button>
+              <button id="leave-seat" class="button button-ghost" type="button" hidden>Rời ghế</button>
+            </div>
+            <p class="seat-note">Người vào trước tự nhận phe Xanh. Mở lời mời trong trình duyệt khác để chơi cùng bạn.</p>
+          </section>
+
+          <section class="card rules-card">
+            <span class="eyebrow">LUẬT NHANH</span>
+            <h2>Mỗi lượt một bước</h2>
+            <p>Chọn quân của bạn rồi đi 1 ô theo bất kỳ hướng nào. Đưa quân tới ô đích của mình hoặc loại hết quân đối phương để thắng.</p>
+            <div class="rps-row"><span>✊ Đấm</span><span>ăn</span><span>✌️ Kéo</span></div>
+            <div class="rps-row"><span>✌️ Kéo</span><span>ăn</span><span>✋ Lá</span></div>
+            <div class="rps-row"><span>✋ Lá</span><span>ăn</span><span>✊ Đấm</span></div>
+            <p class="tie-note">Quân cùng loại không thể ăn nhau.</p>
+          </section>
+
+          <button id="reset" class="button reset-button" type="button" disabled>Chơi lại</button>
+        </aside>
+      </main>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+  </body>
+</html>
