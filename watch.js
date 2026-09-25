@@ -10,7 +10,7 @@ const status = $('#lobby-status');
 const toast = $('#toast');
 const ROOM_PATTERN = /^[A-Z0-9]{4,12}$/;
 const chosen = [...new Set((new URLSearchParams(location.search).get('rooms') || '')
-  .split(',').filter((code) => ROOM_PATTERN.test(code)))].slice(0, 4);
+  .split(',').filter((code) => ROOM_PATTERN.test(code)))];
 const cards = new Map();
 const TYPE_LETTER = { rock: 'Đ', paper: 'L', scissors: 'K' };
 let active = new Map();
@@ -140,15 +140,11 @@ function renderGallery() {
     card.classList.toggle('is-inactive', lobbyReady && !active.has(room));
     gallery.append(card);
   }
-  watchCount.textContent = `${chosen.length} / 4 TRẬN`;
+  watchCount.textContent = `${chosen.length} TRẬN`;
 }
 
 function watch(room) {
   if (chosen.includes(room)) return;
-  if (chosen.length >= 4) {
-    notice('Bạn chỉ có thể xem tối đa bốn trận cùng lúc.');
-    return;
-  }
   chosen.push(room);
   saveSelection();
   renderGallery();
@@ -204,11 +200,20 @@ function renderRooms() {
 
 function updatePresence(presences) {
   const next = new Map();
+  const finished = new Set();
   for (const person of presences.values()) {
     const table = person.table;
     if (!table || !ROOM_PATTERN.test(table.room) || !['p1', 'p2'].includes(table.side)) continue;
+    if (table.finished) {
+      finished.add(table.room);
+      continue;
+    }
     if (!next.has(table.room)) next.set(table.room, {});
     next.get(table.room)[table.side] = String(table.name || 'Người chơi').slice(0, 18);
+  }
+  for (const room of finished) {
+    next.delete(room);
+    if (chosen.includes(room)) unwatch(room);
   }
   active = next;
   lobbyReady = true;
@@ -228,6 +233,11 @@ window.addEventListener('message', (event) => {
   const { room, revision, winner, seats } = event.data;
   const card = cards.get(room);
   if (!card || !Number.isInteger(revision) || event.source !== card.querySelector('iframe').contentWindow) return;
+  if (winner) {
+    unwatch(room);
+    notice(`Trận ${room} đã kết thúc và được gỡ khỏi khán đài.`);
+    return;
+  }
   const meta = card.querySelector('.watch-meta');
   meta.textContent = !active.has(room) ? 'Phòng đã trống'
     : winner === 'draw' ? 'Hòa · ' + revision + ' nước'

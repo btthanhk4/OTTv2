@@ -1,13 +1,13 @@
 import { applyMove, BOARD_SIZE, legalMoves, newGame, pieceCounts, SIDE_LABEL, squareName, TYPE_LABEL, TYPES } from './rules.js';
 import { OnlineSession, joinPlayhtmlPresence } from './online.js';
 import { PlayhtmlSession } from './playhtml-session.js';
-import { createLobbyAnnouncer } from './lobby-presence.js';
+import { createLobbyAnnouncer, findOpenRoom, LOBBY_PRESENCE_ROOM } from './lobby-presence.js';
 
 const $ = (selector) => document.querySelector(selector);
 const els = {
   home: $('#home-view'), gameView: $('#game-view'), board: $('#board'),
   name: $('#player-name'), roomInput: $('#room-input'), create: $('#create-online'),
-  join: $('#join-online'), offline: $('#start-offline'), back: $('#back-home'),
+  quick: $('#quick-match'), join: $('#join-online'), offline: $('#start-offline'), back: $('#back-home'),
   mode: $('#mode-label'), round: $('#round-label'), connection: $('#connection-label'),
   invite: $('#copy-invite'), blueName: $('#blue-name'), redName: $('#red-name'),
   blueCounts: $('#blue-counts'), redCounts: $('#red-counts'),
@@ -110,7 +110,51 @@ function showHome() {
   els.home.hidden = false;
   const url = new URL(location.href);
   url.searchParams.delete('room');
+  url.searchParams.delete('quick');
+  url.searchParams.delete('skip');
   history.replaceState(null, '', url);
+}
+
+function quickMatch() {
+  savedName();
+  const url = new URL(location.href);
+  url.searchParams.delete('room');
+  url.searchParams.delete('skip');
+  url.searchParams.set('quick', '1');
+  location.assign(url.href);
+}
+
+async function findQuickMatch() {
+  els.quick.disabled = true;
+  els.quick.querySelector('strong').textContent = 'Đang tìm đối thủ…';
+  try {
+    const { playhtml } = await import('https://unpkg.com/playhtml');
+    await playhtml.init({ room: 'ottv2-matchmaker-v1' });
+    playhtmlStarted = true;
+    presenceRoom = 'ottv2-matchmaker-v1';
+    const lobby = playhtml.createPresenceRoom(LOBBY_PRESENCE_ROOM);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const excluded = new Set((pageParams.get('skip') || '').split(',').filter(Boolean));
+    const code = findOpenRoom(lobby.presence.getPresences(), excluded) || roomCode();
+    lobby.destroy();
+    const url = new URL(location.href);
+    url.searchParams.set('room', code);
+    location.assign(url.href);
+  } catch (error) {
+    console.error('Ghép trận nhanh:', error);
+    els.quick.disabled = false;
+    els.quick.querySelector('strong').textContent = 'Ghép trận nhanh';
+    notify('Không thể tìm phòng lúc này. Hãy thử lại.');
+  }
+}
+
+function retryQuickMatch(code) {
+  const url = new URL(location.href);
+  const excluded = new Set((url.searchParams.get('skip') || '').split(',').filter(Boolean));
+  excluded.add(code);
+  url.searchParams.set('skip', [...excluded].join(','));
+  url.searchParams.delete('room');
+  location.assign(url.href);
 }
 
 function startOffline() {
@@ -171,6 +215,18 @@ function startOnline(code) {
       const revisionChanged = game?.revision !== state.game.revision || onlineState?.round !== state.round;
       onlineState = state;
       game = state.game;
+      if (pageParams.get('quick') === '1' && !spectatorOnly) {
+        if (state.role) {
+          const cleanUrl = new URL(location.href);
+          cleanUrl.searchParams.delete('quick');
+          cleanUrl.searchParams.delete('skip');
+          history.replaceState(null, '', cleanUrl);
+          pageParams.delete('quick');
+        } else if (game.winner || (state.seats?.p1?.online && state.seats?.p2?.online)) {
+          retryQuickMatch(code);
+          return;
+        }
+      }
       if (revisionChanged) selected = null;
       pendingMove = false;
       render();
@@ -188,12 +244,12 @@ function startOnline(code) {
             partyPresencePending = false;
             if (mode !== 'online' || room !== code) return;
             partyLobbyAnnouncer = createLobbyAnnouncer(playhtml, code, name);
-            partyLobbyAnnouncer.update(onlineState?.role);
+            partyLobbyAnnouncer.update(onlineState?.role, Boolean(game?.winner));
           }).catch((error) => {
             partyPresencePending = false;
             console.warn('PlayHTML presence:', error);
           });
-        } else partyLobbyAnnouncer?.update(state.role);
+        } else partyLobbyAnnouncer?.update(state.role, Boolean(state.game.winner));
       } else if (!usePartyKit) {
         playhtmlStarted = true;
         presenceRoom = code;
@@ -401,6 +457,7 @@ els.board.addEventListener('click', (event) => {
   renderBoard();
 });
 
+els.quick.addEventListener('click', quickMatch);
 els.create.addEventListener('click', () => startOnline(roomCode()));
 els.join.addEventListener('click', () => startOnline(els.roomInput.value.trim().toUpperCase()));
 els.roomInput.addEventListener('keydown', (event) => {
@@ -432,3 +489,4 @@ els.claimRed.addEventListener('click', () => session?.send({ type: 'claim', side
 els.name.value = localStorage.getItem('ottv2-name') || '';
 const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase();
 if (initialRoom) startOnline(initialRoom);
+else if (pageParams.get('quick') === '1') findQuickMatch();

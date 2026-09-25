@@ -85,7 +85,7 @@ export class PlayhtmlSession {
     if (!match?.game || !match?.seats) return;
     const online = this.onlineTokens();
     const role = this.roleFor(match);
-    this.announcer?.update(role);
+    this.announcer?.update(role, Boolean(match.game.winner));
     const seats = Object.fromEntries(['p1', 'p2'].map((side) => {
       const seat = match.seats[side];
       return [side, seat ? {

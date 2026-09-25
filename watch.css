@@ -6,15 +6,15 @@
 .watch-intro h1 em::before { content: ' '; white-space: pre; }
 .watch-intro h1 em { color: #ac503d; font-weight: 500; }
 .watch-intro > p { max-width: 335px; margin: 0 0 4px; color: #606d61; font-size: 11px; line-height: 1.7; }
-.watch-layout { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); gap: 18px; height: min(760px, calc(100dvh - 232px)); }
-.watch-directory, .watch-stage { min-width: 0; min-height: 0; height: 100%; padding: 12px; overflow: hidden; border: 1px solid #b4c0b2; background: #f7f5ed; }
+.watch-layout { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); align-items: start; gap: 18px; }
+.watch-directory, .watch-stage { min-width: 0; padding: 12px; border: 1px solid #b4c0b2; background: #f7f5ed; }
 .watch-directory { display: flex; flex-direction: column; }
 .watch-stage { background: #e2e9df; }
 .watch-section-head { display: flex; justify-content: space-between; align-items: end; gap: 10px; margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px solid #cbd2c7; }
 .watch-section-head h2 { margin: 5px 0 0; font-family: 'Literata', Georgia, serif; font-size: 22px; font-weight: 600; letter-spacing: -.04em; }
 .live-count, .watch-count { white-space: nowrap; color: #aa5540; font-size: 9px; font-weight: 800; letter-spacing: .11em; }
 .lobby-status { margin: 0 0 12px; color: #68786e; font-size: 10px; line-height: 1.6; }
-.room-list { display: grid; align-content: start; gap: 9px; min-height: 0; overflow: auto; }
+.room-list { display: grid; align-content: start; gap: 9px; }
 .room-entry { padding: 14px; border: 1px solid #b8c8ba; background: #fffdf6; }
 .room-entry.is-selected { border-color: #3c6858; box-shadow: inset 3px 0 0 #3c6858; }
 .room-entry-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
@@ -25,7 +25,7 @@
 .room-players b { color: #3c5b4e; }
 .room-entry .button { width: 100%; min-height: 36px; }
 .room-list-empty { padding: 28px 12px; border: 1px dashed #a8b9a9; color: #718273; font-size: 11px; line-height: 1.7; text-align: center; }
-.watch-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 11px; height: min(620px, calc(100dvh - 368px)); min-height: 510px; }
+.watch-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 260px; gap: 11px; min-height: 510px; }
 .watch-empty { display: flex; flex-direction: column; justify-content: center; align-items: center; grid-column: 1 / -1; grid-row: 1 / -1; border: 1px dashed #a1b4a2; color: #496959; text-align: center; }
 .watch-empty > span { margin-bottom: 9px; color: #aa563f; font-size: 40px; }
 .watch-empty strong { font-family: 'Literata', Georgia, serif; font-size: 22px; font-weight: 600; }
@@ -59,11 +59,9 @@
 @media (max-width: 950px) {
   .watch-intro h1 br { display: initial; }
   .watch-intro h1 em::before { content: none; }
-  .watch-layout { grid-template-columns: 1fr; height: auto; }
-  .watch-directory, .watch-stage { height: auto; overflow: visible; }
-  .watch-directory { max-height: 270px; }
+  .watch-layout { grid-template-columns: 1fr; }
   .room-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .watch-gallery { height: 700px; }
+  .watch-gallery { grid-auto-rows: 300px; }
   .mini-board { --mini-cell: 25px; }
 }
 @media (max-width: 600px) {
@@ -71,7 +69,7 @@
   .watch-intro > p { margin-top: 15px; }
   .watch-page { padding: 22px 12px; }
   .room-list { grid-template-columns: 1fr; }
-  .watch-gallery { grid-template-columns: 1fr; grid-template-rows: none; height: auto; min-height: 360px; }
+  .watch-gallery { grid-template-columns: 1fr; grid-auto-rows: 300px; min-height: 300px; }
   .watch-card { height: 300px; }
   .watch-empty { min-height: 300px; }
   .mini-board { --mini-cell: 28px; }

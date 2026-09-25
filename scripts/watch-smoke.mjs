@@ -44,19 +44,20 @@ try {
   await watch.locator('.room-entry').first().waitFor({ timeout: 60000 });
   await watch.waitForFunction(() => document.querySelectorAll('.room-entry').length === 5, undefined, { timeout: 60000 });
   assert.equal(await watch.locator('.room-entry').count(), 5);
-  for (const code of codes.slice(0, 4)) {
+  for (const code of codes) {
     await watch.locator(`.room-entry:has(.room-code:text-is("${code}")) button`).click();
   }
-  assert.equal(await watch.locator('.watch-card').count(), 4);
-  await watch.locator(`.room-entry:has(.room-code:text-is("${codes[4]}")) button`).click();
-  assert.equal(await watch.locator('.watch-card').count(), 4);
-  assert.match(await watch.locator('#toast').textContent(), /tối đa bốn/);
+  assert.equal(await watch.locator('.watch-card').count(), 5);
+  assert.match(await watch.locator('#watch-count').textContent(), /5 TRẬN/);
   for (const card of await watch.locator('.watch-card').all()) {
     await card.locator('.mini-square').first().waitFor({ timeout: 60000 });
     assert.equal(await card.locator('.mini-square').count(), 81);
   }
   const galleryBottom = await watch.locator('#watch-gallery').evaluate((node) => node.getBoundingClientRect().bottom);
-  assert.ok(galleryBottom <= 900);
+  assert.ok(galleryBottom > 900);
+  assert.equal(await watch.evaluate(() => document.documentElement.scrollHeight > innerHeight), true);
+  await watch.locator(`.watch-card[data-room="${codes[4]}"]`).scrollIntoViewIfNeeded();
+  assert.equal(await watch.locator(`.watch-card[data-room="${codes[4]}"]`).isVisible(), true);
   const frames = watch.frameLocator('.watch-card iframe');
   assert.equal(await frames.first().locator('#claim-actions').isVisible(), false);
 
@@ -67,16 +68,32 @@ try {
   await players[0].locator('.square[data-row="6"][data-col="0"]').click();
   await players[0].locator('.square[data-row="5"][data-col="0"]').click();
   const firstCard = watch.locator(`.watch-card[data-room="${codes[0]}"]`);
-  await firstCard.locator('.watch-meta').getByText(/1 nước/).waitFor({ timeout: 30000 });
+  await firstCard.scrollIntoViewIfNeeded();
+  try {
+    await firstCard.locator('.watch-meta').getByText(/1 nước/).waitFor({ timeout: 30000 });
+  } catch (error) {
+    console.log('Move debug:', await players[0].locator('#move-total').textContent(),
+      await players[0].locator('#toast').textContent(), await firstCard.locator('.watch-meta').textContent(),
+      await watch.locator('#lobby-status').textContent(), errors);
+    throw error;
+  }
   assert.equal(await firstCard.locator('.mini-square').nth(45).locator('.mini-piece.p1').count(), 1);
+  await players[0].evaluate(async () => {
+    const { playhtml } = await import('https://unpkg.com/playhtml');
+    const channel = playhtml.createPageData('ottv2-match-v3', {});
+    channel.setData((draft) => {
+      draft.game.winner = 'p1';
+      draft.game.winReason = 'goal';
+    });
+  });
+  await watch.locator(`.watch-card[data-room="${codes[0]}"]`).waitFor({ state: 'detached', timeout: 30000 });
+  await watch.locator(`.room-entry:has(.room-code:text-is("${codes[0]}"))`).waitFor({ state: 'detached', timeout: 30000 });
   await players[0].context().close();
   await rivalContext.close();
-  await watch.waitForFunction((room) => ![...document.querySelectorAll('.room-code')]
-    .some((node) => node.textContent === room), codes[0], { timeout: 30000 });
-  await watch.screenshot({ path: 'artifacts/watch-four-desktop.png', fullPage: true });
+  await watch.screenshot({ path: 'artifacts/watch-many-desktop.png', fullPage: true });
   await watch.setViewportSize({ width: 390, height: 844 });
   assert.equal(await watch.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await watch.screenshot({ path: 'artifacts/watch-four-mobile.png', fullPage: true });
+  await watch.screenshot({ path: 'artifacts/watch-many-mobile.png', fullPage: true });
   await watch.setViewportSize({ width: 320, height: 800 });
   assert.equal(await watch.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
@@ -95,7 +112,7 @@ try {
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await mobile.screenshot({ path: 'artifacts/watch-mobile-board.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('Watch smoke: 5 active rooms, 4 gallery boards, spectator lock, fixed squares OK');
+  console.log('Watch smoke: 5 scrolling boards, finished match removal, spectator lock, fixed squares OK');
 } finally {
   await browser.close();
 }
