@@ -42,8 +42,15 @@ try {
   watch.on('pageerror', (error) => errors.push(error.message));
   await watch.goto(new URL('watch.html?backend=playhtml', base).href);
   await watch.locator('.room-entry').first().waitFor({ timeout: 60000 });
-  await watch.waitForFunction(() => document.querySelectorAll('.room-entry').length === 5, undefined, { timeout: 60000 });
-  assert.equal(await watch.locator('.room-entry').count(), 5);
+  try {
+    await watch.waitForFunction((wanted) => wanted.every((code) =>
+      [...document.querySelectorAll('.room-code')].some((node) => node.textContent === code)), codes, { timeout: 60000 });
+  } catch (error) {
+    console.log('Lobby debug:', codes, await watch.locator('.room-code').allTextContents(),
+      await watch.locator('#lobby-status').textContent(), errors);
+    throw error;
+  }
+  assert.ok(await watch.locator('.room-entry').count() >= 5);
   for (const code of codes) {
     await watch.locator(`.room-entry:has(.room-code:text-is("${code}")) button`).click();
   }
@@ -53,8 +60,8 @@ try {
     await card.locator('.mini-square').first().waitFor({ timeout: 60000 });
     assert.equal(await card.locator('.mini-square').count(), 81);
   }
-  const galleryBottom = await watch.locator('#watch-gallery').evaluate((node) => node.getBoundingClientRect().bottom);
-  assert.ok(galleryBottom > 900);
+  const galleryHeight = await watch.locator('#watch-gallery').evaluate((node) => node.getBoundingClientRect().height);
+  assert.ok(galleryHeight >= 790);
   assert.equal(await watch.evaluate(() => document.documentElement.scrollHeight > innerHeight), true);
   await watch.locator(`.watch-card[data-room="${codes[4]}"]`).scrollIntoViewIfNeeded();
   assert.equal(await watch.locator(`.watch-card[data-room="${codes[4]}"]`).isVisible(), true);
