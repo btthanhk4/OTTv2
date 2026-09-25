@@ -17,6 +17,14 @@ export function findOpenRoom(presences, excluded = new Set()) {
     .sort((a, b) => a[1].joinedAt - b[1].joinedAt || a[0].localeCompare(b[0]))[0]?.[0] || null;
 }
 
+export function waitingPlayers(presences) {
+  return [...presences.values()]
+    .map((person) => person.queue)
+    .filter((queue) => queue && typeof queue.token === 'string' &&
+      Number.isFinite(queue.joinedAt) && queue.state === 'waiting')
+    .sort((a, b) => a.joinedAt - b.joinedAt || a.token.localeCompare(b.token));
+}
+
 export function createLobbyAnnouncer(playhtml, room, name) {
   const lobby = playhtml.createPresenceRoom(LOBBY_PRESENCE_ROOM);
   let currentSide = null;

@@ -33,7 +33,7 @@ Trên GitHub Pages, chế độ online dùng [PlayHTML](https://playhtml.fun/) �
 
 Trang [xem trận](https://btthanhk4.github.io/OTTv2/watch.html) hiển thị các phòng đang có người chơi bằng presence của PlayHTML. Chọn nhiều phòng để theo dõi cùng lúc và cuộn trang để xem các bàn tiếp theo. Các khung xem mở với vai trò khán giả, không tự chiếm ghế và không gửi thao tác chơi. Trận kết thúc tự rời khỏi khán đài; phòng không còn người chơi biến mất khỏi danh sách.
 
-Nút **Ghép trận nhanh** tìm phòng đang chờ một người chơi qua sảnh PlayHTML. Nếu chưa có ghế phù hợp, trò chơi tự tạo phòng mới để chờ đối thủ. Nếu ghế vừa được người khác chiếm, ghép trận sẽ tìm lại phòng khác.
+Nút **Ghép trận nhanh** tìm phòng đang có đúng một người chơi qua sảnh PlayHTML. Nếu chưa có phòng phù hợp, người chơi ở màn hình chờ và có thể hủy. Khi một người khác cũng vào hàng chờ, họ được ghép vào cùng một bàn cờ. Nếu ghế vừa được người khác chiếm, ghép trận sẽ quay lại sảnh chờ để tìm phòng khác.
 
 ## Kiểm thử
 
@@ -44,4 +44,4 @@ npm test
 `node scripts/browser-smoke.mjs` kiểm tra giao diện, offline và PartyKit khi cả HTTP tĩnh và PartyKit đang chạy. `node scripts/playhtml-smoke.mjs` kiểm tra hai người chơi và khán giả qua PlayHTML khi HTTP tĩnh đang chạy. Bài kiểm tra trình duyệt dùng Microsoft Edge cài trên máy.
 
 Để kiểm tra trang đã xuất bản: `node scripts/playhtml-smoke.mjs https://btthanhk4.github.io/OTTv2/`.
-`node scripts/watch-smoke.mjs` kiểm tra sảnh trận, cuộn xem hơn bốn khung, tự gỡ trận kết thúc và kích thước ô cờ. `node scripts/matchmaking-smoke.mjs` kiểm tra ghép trận nhanh vào ghế đang chờ.
+`node scripts/watch-smoke.mjs` kiểm tra sảnh trận, cuộn xem hơn bốn khung, tự gỡ trận kết thúc và kích thước ô cờ. `node scripts/matchmaking-smoke.mjs` kiểm tra trạng thái chờ, ghép vào ghế có sẵn, ghép hai người đang chờ và hủy tìm trận.

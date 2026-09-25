@@ -34,7 +34,7 @@
 
           <button id="quick-match" class="mode-card quick-card" type="button">
             <span class="mode-icon" aria-hidden="true">✳</span>
-            <span class="mode-copy"><strong>Ghép trận nhanh</strong><small>Vào ghế trống trong sảnh; nếu chưa có, tự mở phòng chờ.</small></span>
+            <span class="mode-copy"><strong>Ghép trận nhanh</strong><small>Vào phòng còn một người; nếu chưa có, chờ đối thủ trong sảnh.</small></span>
             <span class="mode-arrow" aria-hidden="true">→</span>
           </button>
           <button id="create-online" class="mode-card online-card" type="button">
@@ -58,6 +58,12 @@
             <span class="mode-copy"><strong>Xem các trận đang chơi</strong><small>Theo dõi nhiều bàn cờ, cuộn để xem thêm; khán giả không giữ ghế.</small></span>
             <span class="mode-arrow" aria-hidden="true">→</span>
           </a>
+          <div id="quick-wait" class="quick-wait" role="status" aria-live="polite" hidden>
+            <span class="quick-wait-mark" aria-hidden="true">✳</span>
+            <h2 id="quick-wait-title">Đang tìm phòng còn ghế</h2>
+            <p id="quick-wait-detail">Bạn đang ở sảnh chờ. Trò chơi sẽ tự ghép khi có đối thủ.</p>
+            <button id="cancel-quick" class="button button-outline" type="button">Hủy tìm trận</button>
+          </div>
         </div>
 
         <div class="hero-art" aria-hidden="true">

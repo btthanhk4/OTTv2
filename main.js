@@ -1,11 +1,13 @@
 import { applyMove, BOARD_SIZE, legalMoves, newGame, pieceCounts, SIDE_LABEL, squareName, TYPE_LABEL, TYPES } from './rules.js';
 import { OnlineSession, joinPlayhtmlPresence } from './online.js';
 import { PlayhtmlSession } from './playhtml-session.js';
-import { createLobbyAnnouncer, findOpenRoom, LOBBY_PRESENCE_ROOM } from './lobby-presence.js';
+import { createLobbyAnnouncer, findOpenRoom, LOBBY_PRESENCE_ROOM, waitingPlayers } from './lobby-presence.js';
 
 const $ = (selector) => document.querySelector(selector);
 const els = {
   home: $('#home-view'), gameView: $('#game-view'), board: $('#board'),
+  startPanel: $('.start-panel'), quickWait: $('#quick-wait'), quickWaitTitle: $('#quick-wait-title'),
+  quickWaitDetail: $('#quick-wait-detail'), cancelQuick: $('#cancel-quick'),
   name: $('#player-name'), roomInput: $('#room-input'), create: $('#create-online'),
   quick: $('#quick-match'), join: $('#join-online'), offline: $('#start-offline'), back: $('#back-home'),
   mode: $('#mode-label'), round: $('#round-label'), connection: $('#connection-label'),
@@ -43,6 +45,8 @@ let partyLobbyAnnouncer = null;
 let partyPresencePending = false;
 let connectionStatus = 'Sẵn sàng';
 let offlineRound = 1;
+let quickLobby = null;
+let quickPoll = null;
 
 function notify(message) {
   els.toast.textContent = message;
@@ -124,27 +128,111 @@ function quickMatch() {
   location.assign(url.href);
 }
 
+function stopQuickMatch() {
+  clearInterval(quickPoll);
+  quickPoll = null;
+  if (quickLobby) {
+    quickLobby.presence.setMyPresence('queue', null);
+    quickLobby.destroy();
+    quickLobby = null;
+  }
+}
+
+function cancelQuickMatch() {
+  stopQuickMatch();
+  const url = new URL(location.href);
+  url.searchParams.delete('room');
+  url.searchParams.delete('quick');
+  url.searchParams.delete('skip');
+  location.assign(url.href);
+}
+
 async function findQuickMatch() {
-  els.quick.disabled = true;
-  els.quick.querySelector('strong').textContent = 'Đang tìm đối thủ…';
+  els.startPanel.classList.add('is-quick-waiting');
+  els.quickWait.hidden = false;
+  els.quickWaitTitle.textContent = 'Đang tìm phòng còn ghế';
+  els.quickWaitDetail.textContent = 'Bạn đang ở sảnh chờ. Trò chơi sẽ tự ghép khi có đối thủ.';
   try {
     const { playhtml } = await import('https://unpkg.com/playhtml');
     await playhtml.init({ room: 'ottv2-matchmaker-v1' });
     playhtmlStarted = true;
     presenceRoom = 'ottv2-matchmaker-v1';
     const lobby = playhtml.createPresenceRoom(LOBBY_PRESENCE_ROOM);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    quickLobby = lobby;
+    const token = crypto.randomUUID();
     const excluded = new Set((pageParams.get('skip') || '').split(',').filter(Boolean));
-    const code = findOpenRoom(lobby.presence.getPresences(), excluded) || roomCode();
-    lobby.destroy();
-    const url = new URL(location.href);
-    url.searchParams.set('room', code);
-    location.assign(url.href);
+    let queue = { token, joinedAt: Date.now(), state: 'waiting' };
+    let navigating = false;
+
+    function publish(next) {
+      queue = next;
+      lobby.presence.setMyPresence('queue', queue);
+    }
+
+    function enterRoom(code) {
+      if (navigating) return;
+      navigating = true;
+      stopQuickMatch();
+      const url = new URL(location.href);
+      url.searchParams.set('room', code);
+      location.assign(url.href);
+    }
+
+    function checkLobby() {
+      if (navigating || quickLobby !== lobby) return;
+      const presences = lobby.presence.getPresences();
+      const entries = [...presences.values()];
+      const now = Date.now();
+      if (queue.state === 'waiting') {
+        const openRoom = findOpenRoom(presences, excluded);
+        if (openRoom) return enterRoom(openRoom);
+        const offer = entries.map((person) => person.queue)
+          .find((candidate) => candidate?.state === 'offering' && candidate.partner === token &&
+            now - candidate.since < 20000);
+        if (offer) {
+          publish({ ...queue, state: 'accepted', partner: offer.token, room: offer.room, since: now });
+          els.quickWaitTitle.textContent = 'Đã tìm thấy đối thủ';
+          els.quickWaitDetail.textContent = 'Đối thủ đang mở bàn cờ. Bạn sẽ tự vào khi ghế đã sẵn sàng.';
+          return;
+        }
+        const waiters = waitingPlayers(presences);
+        if (waiters.length >= 2 && waiters[0].token === token) {
+          publish({ ...queue, state: 'offering', partner: waiters[1].token, room: roomCode(), since: now });
+          els.quickWaitTitle.textContent = 'Đã tìm thấy đối thủ';
+          els.quickWaitDetail.textContent = 'Đang xác nhận cặp ghép và chuẩn bị bàn cờ.';
+        }
+      } else if (queue.state === 'offering') {
+        const partner = entries.map((person) => person.queue)
+          .find((candidate) => candidate?.token === queue.partner);
+        if (partner?.state === 'accepted' && partner.partner === token && partner.room === queue.room) {
+          return enterRoom(queue.room);
+        }
+        if (now - queue.since > 20000) {
+          publish({ token, joinedAt: now, state: 'waiting' });
+          els.quickWaitTitle.textContent = 'Đang tìm phòng còn ghế';
+          els.quickWaitDetail.textContent = 'Đối thủ trước đã rời sảnh. Trò chơi đang tiếp tục tìm trận.';
+        }
+      } else if (queue.state === 'accepted') {
+        const target = new Map([...presences].filter(([, person]) => person.table?.room === queue.room));
+        if (findOpenRoom(target, excluded) === queue.room) return enterRoom(queue.room);
+        if (now - queue.since > 20000) {
+          publish({ token, joinedAt: now, state: 'waiting' });
+          els.quickWaitTitle.textContent = 'Đang tìm phòng còn ghế';
+          els.quickWaitDetail.textContent = 'Bàn cờ chưa sẵn sàng. Trò chơi đang tìm đối thủ khác.';
+        }
+      }
+    }
+
+    lobby.presence.onPresenceChange('table', checkLobby);
+    lobby.presence.onPresenceChange('queue', checkLobby);
+    publish(queue);
+    quickPoll = setInterval(checkLobby, 700);
+    setTimeout(checkLobby, 800);
   } catch (error) {
     console.error('Ghép trận nhanh:', error);
-    els.quick.disabled = false;
-    els.quick.querySelector('strong').textContent = 'Ghép trận nhanh';
-    notify('Không thể tìm phòng lúc này. Hãy thử lại.');
+    stopQuickMatch();
+    els.quickWaitTitle.textContent = 'Không thể kết nối sảnh';
+    els.quickWaitDetail.textContent = 'Kiểm tra kết nối mạng rồi hủy để thử lại.';
   }
 }
 
@@ -458,6 +546,7 @@ els.board.addEventListener('click', (event) => {
 });
 
 els.quick.addEventListener('click', quickMatch);
+els.cancelQuick.addEventListener('click', cancelQuickMatch);
 els.create.addEventListener('click', () => startOnline(roomCode()));
 els.join.addEventListener('click', () => startOnline(els.roomInput.value.trim().toUpperCase()));
 els.roomInput.addEventListener('keydown', (event) => {

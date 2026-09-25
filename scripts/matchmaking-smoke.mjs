@@ -6,43 +6,69 @@ const base = process.argv[2] || 'http://127.0.0.1:8000/';
 const code = `Q${Date.now().toString(36).toUpperCase().slice(-7)}`;
 const errors = [];
 
-function url(room) {
+function url(room, skip = []) {
   const target = new URL(base);
   if (target.hostname === 'localhost' || target.hostname === '127.0.0.1') {
     target.searchParams.set('backend', 'playhtml');
   }
   if (room) target.searchParams.set('room', room);
+  if (skip.length) {
+    target.searchParams.set('quick', '1');
+    target.searchParams.set('skip', skip.join(','));
+  }
   return target.href;
 }
 
+async function newPage() {
+  const page = await browser.newPage();
+  page.on('pageerror', (error) => errors.push(error.message));
+  return page;
+}
+
 try {
-  const waiting = await browser.newPage();
-  waiting.on('pageerror', (error) => errors.push(error.message));
-  await waiting.goto(url(code));
-  await waiting.locator('#role-label').getByText(/PHE XANH/).waitFor({ timeout: 60000 });
+  const seeker = await newPage();
+  await seeker.setViewportSize({ width: 390, height: 844 });
+  await seeker.goto(url());
+  await seeker.locator('#quick-match').click();
+  await seeker.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
+  await seeker.waitForTimeout(2200);
+  assert.equal(new URL(seeker.url()).searchParams.has('room'), false);
+  assert.equal(await seeker.locator('#game-view').isVisible(), false);
+  assert.equal(await seeker.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await seeker.screenshot({ path: 'artifacts/quick-wait-mobile.png', fullPage: true });
 
-  const challenger = await browser.newPage();
-  challenger.on('pageerror', (error) => errors.push(error.message));
-  await challenger.goto(url());
-  await challenger.locator('#quick-match').click();
-  await challenger.locator('#role-label').getByText(/PHE ĐỎ/).waitFor({ timeout: 60000 });
-  assert.equal(new URL(challenger.url()).searchParams.get('room'), code);
-  assert.equal(new URL(challenger.url()).searchParams.has('quick'), false);
-  await waiting.locator('#status-title').getByText(/Lượt phe/).waitFor({ timeout: 30000 });
-  await challenger.close();
-  await waiting.close();
+  const host = await newPage();
+  await host.goto(url(code));
+  await host.locator('#role-label').getByText(/PHE XANH/).waitFor({ timeout: 60000 });
+  await seeker.locator('#role-label').getByText(/PHE ĐỎ/).waitFor({ timeout: 60000 });
+  assert.equal(new URL(seeker.url()).searchParams.get('room'), code);
+  await seeker.close();
+  await host.close();
 
-  const solo = await browser.newPage();
-  solo.on('pageerror', (error) => errors.push(error.message));
-  const soloUrl = new URL(url());
-  soloUrl.searchParams.set('quick', '1');
-  soloUrl.searchParams.set('skip', code);
-  await solo.goto(soloUrl.href);
-  await solo.locator('#role-label').getByText(/PHE XANH/).waitFor({ timeout: 60000 });
-  assert.notEqual(new URL(solo.url()).searchParams.get('room'), code);
-  assert.equal(new URL(solo.url()).searchParams.has('quick'), false);
+  const first = await newPage();
+  await first.goto(url(null, [code]));
+  await first.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
+  await first.waitForTimeout(2200);
+  assert.equal(new URL(first.url()).searchParams.has('room'), false);
+
+  const second = await newPage();
+  await second.goto(url(null, [code]));
+  await first.locator('#role-label').getByText(/PHE XANH/).waitFor({ timeout: 60000 });
+  await second.locator('#role-label').getByText(/PHE ĐỎ/).waitFor({ timeout: 60000 });
+  const pairedRoom = new URL(first.url()).searchParams.get('room');
+  assert.ok(pairedRoom);
+  assert.equal(new URL(second.url()).searchParams.get('room'), pairedRoom);
+  await first.close();
+  await second.close();
+
+  const cancel = await newPage();
+  await cancel.goto(url(null, [code, pairedRoom]));
+  await cancel.locator('#quick-wait').waitFor({ state: 'visible', timeout: 30000 });
+  await cancel.locator('#cancel-quick').click();
+  await cancel.waitForURL((value) => !value.searchParams.has('quick'));
+  assert.equal(await cancel.locator('#home-view').isVisible(), true);
   assert.deepEqual(errors, []);
-  console.log('Matchmaking smoke: filled waiting room and created a new room when none was available');
+  console.log('Matchmaking smoke: waits without a room, joins a host, pairs two seekers, and cancels');
 } finally {
   await browser.close();
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findOpenRoom } from '../lobby-presence.js';
+import { findOpenRoom, waitingPlayers } from '../lobby-presence.js';
 
 test('ghép vào phòng còn một ghế, ưu tiên phòng chờ lâu nhất', () => {
   const presences = new Map([
@@ -21,4 +21,13 @@ test('không ghép vào phòng đã kết thúc dù còn tín hiệu của ngư�
     ['b', { table: { room: 'DONE', side: 'p1', joinedAt: 2 } }],
   ]);
   assert.equal(findOpenRoom(presences), null);
+});
+
+test('hàng chờ chỉ chứa người đang tìm trận và xếp theo thời gian vào', () => {
+  const presences = new Map([
+    ['late', { queue: { token: 'late', joinedAt: 200, state: 'waiting' } }],
+    ['busy', { queue: { token: 'busy', joinedAt: 50, state: 'offering' } }],
+    ['early', { queue: { token: 'early', joinedAt: 100, state: 'waiting' } }],
+  ]);
+  assert.deepEqual(waitingPlayers(presences).map(({ token }) => token), ['early', 'late']);
 });

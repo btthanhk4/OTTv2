@@ -49,6 +49,14 @@ h1, h2, h3, p { margin-top: 0; }
 .mode-card:hover { transform: translate(-3px, -3px); box-shadow: 4px 4px 0 #aeb9aa; background: #fffefa; }
 .quick-card { border-color: #ad5743; background: #b45743; color: #fffaf0; }
 .quick-card:hover { background: #c2644b; box-shadow: 4px 4px 0 #c9a696; }
+.start-panel.is-quick-waiting > :not(.panel-number):not(.quick-wait) { display: none; }
+.quick-wait { padding: 13px 2px 2px; }
+.quick-wait-mark { display: grid; place-items: center; width: 58px; height: 58px; margin-bottom: 22px; border: 1px solid #b66049; border-radius: 50%; color: #b66049; font-size: 29px; animation: quick-pulse 1.8s ease-in-out infinite; }
+.quick-wait h2 { margin: 0 0 10px; font-family: 'Literata', Georgia, serif; font-size: 27px; font-weight: 600; line-height: 1.25; }
+.quick-wait p { min-height: 45px; margin: 0 0 22px; color: #657065; font-size: 11px; line-height: 1.7; }
+.quick-wait .button { width: 100%; }
+@keyframes quick-pulse { 50% { transform: scale(1.12); box-shadow: 0 0 0 9px #b660491b; } }
+@media (prefers-reduced-motion: reduce) { .quick-wait-mark { animation: none; } }
 .online-card { border-color: #314b45; background: #304b44; color: #f9f4e7; }
 .online-card:hover { background: #3b5d53; box-shadow: 4px 4px 0 #90a99d; }
 .mode-icon { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; font-size: 21px; }
