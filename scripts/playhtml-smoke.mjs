@@ -3,7 +3,12 @@ import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const code = `P${Date.now().toString(36).toUpperCase()}`;
-const url = `http://127.0.0.1:8000/?backend=playhtml&room=${code}`;
+const address = new URL(process.argv[2] || 'http://127.0.0.1:8000/');
+if (address.hostname === 'localhost' || address.hostname === '127.0.0.1') {
+  address.searchParams.set('backend', 'playhtml');
+}
+address.searchParams.set('room', code);
+const url = address.href;
 const errors = [];
 async function page() {
   const context = await browser.newContext();

@@ -38,3 +38,5 @@ npm test
 ```
 
 `node scripts/browser-smoke.mjs` kiểm tra giao diện, offline và PartyKit khi cả HTTP tĩnh và PartyKit đang chạy. `node scripts/playhtml-smoke.mjs` kiểm tra hai người chơi và khán giả qua PlayHTML khi HTTP tĩnh đang chạy. Bài kiểm tra trình duyệt dùng Microsoft Edge cài trên máy.
+
+Để kiểm tra trang đã xuất bản: `node scripts/playhtml-smoke.mjs https://btthanhk4.github.io/OTTv2/`.
