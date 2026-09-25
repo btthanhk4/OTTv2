@@ -3,101 +3,134 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101b2e" />
-    <title>Đấu Trường Oẳn Tù Tì</title>
+    <meta name="theme-color" content="#ece9df" />
+    <meta name="description" content="OTTv2: cờ chiến thuật Đấm Lá Kéo 9×9. Chơi online với bạn bè hoặc chơi offline trên cùng một máy." />
+    <title>OTTv2 — Oẳn Tù Tì trên bàn cờ</title>
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./main.js"></script>
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark" aria-hidden="true">✊</span>
-          <div>
-            <span class="eyebrow">CỜ CHIẾN THUẬT 2 NGƯỜI</span>
-            <h1>Đấu Trường <span>Oẳn Tù Tì</span></h1>
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="OTTv2, về trang chủ">ott<span>v2</span><i></i></a>
+      <nav class="site-nav" aria-label="Điều hướng">
+        <a href="#luat-choi">Luật chơi</a>
+        <span class="edition">BÀN CỜ / PHIÊN BẢN 02</span>
+      </nav>
+    </header>
+
+    <main>
+      <section id="home-view" class="home-view">
+        <div class="hero-copy">
+          <p class="overline"><span class="little-star">✳</span> CỜ CHIẾN THUẬT · 2 NGƯỜI</p>
+          <h1>Ba nước tay.<br /><em>Một cuộc đấu trí.</em></h1>
+          <p class="hero-intro">Đấm, Lá, Kéo bước lên bàn cờ 9×9. Đọc đường đi của đối thủ, giữ quân của mình và chạm tới góc chiến thắng.</p>
+          <div class="hero-facts"><span>09 × 09 ô</span><span>08 hướng đi</span><span>02 cách thắng</span></div>
+        </div>
+
+        <div class="start-panel">
+          <div class="panel-number">01 / CHỌN CÁCH CHƠI</div>
+          <label class="field-label" for="player-name">Tên của bạn</label>
+          <input id="player-name" class="text-input" type="text" maxlength="18" placeholder="Người chơi" autocomplete="nickname" />
+
+          <button id="create-online" class="mode-card online-card" type="button">
+            <span class="mode-icon" aria-hidden="true">↗</span>
+            <span class="mode-copy"><strong>Tạo phòng online</strong><small>Mời một người bạn. Người khác có thể xem trận.</small></span>
+            <span class="mode-arrow" aria-hidden="true">→</span>
+          </button>
+          <div class="join-row">
+            <label class="sr-only" for="room-input">Mã phòng</label>
+            <input id="room-input" class="text-input" type="text" maxlength="12" placeholder="Nhập mã phòng" autocapitalize="characters" spellcheck="false" />
+            <button id="join-online" class="button button-dark" type="button">Vào phòng</button>
+          </div>
+          <div class="divider"><span>hoặc</span></div>
+          <button id="start-offline" class="mode-card offline-card" type="button">
+            <span class="mode-icon" aria-hidden="true">◎</span>
+            <span class="mode-copy"><strong>Chơi chung một máy</strong><small>Hai người thay phiên, không cần kết nối mạng.</small></span>
+            <span class="mode-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-board">
+            <span class="art-chip art-chip-blue">Đ</span><span></span><span class="art-chip art-chip-red">L</span>
+            <span></span><span class="art-target">✳</span><span></span>
+            <span class="art-chip art-chip-red">K</span><span></span><span class="art-chip art-chip-blue">L</span>
+          </div>
+          <p>ĐI MỘT BƯỚC. NGHĨ BA NƯỚC.</p>
+        </div>
+      </section>
+
+      <section id="game-view" class="game-view" hidden>
+        <div class="match-toolbar">
+          <button id="back-home" class="text-button" type="button">← Rời bàn</button>
+          <div class="match-label"><span id="mode-label">OFFLINE</span><b>·</b><span id="round-label">VÁN 01</span></div>
+          <div class="toolbar-actions">
+            <span id="connection-label" class="connection-label">Sẵn sàng</span>
+            <button id="copy-invite" class="button button-outline" type="button" hidden>Sao chép lời mời</button>
           </div>
         </div>
-        <div class="room-tools">
-          <span class="room-pill">Phòng <strong id="room-code">...</strong></span>
-          <button id="copy-link" class="button button-ghost" type="button">Sao chép lời mời</button>
+
+        <div class="game-layout">
+          <section class="play-area" aria-label="Bàn cờ OTTv2">
+            <div class="player-ribbon red-ribbon">
+              <div class="player-ident"><span class="ribbon-dot"></span><div><small>PHE ĐỎ · ĐÍCH A1</small><strong id="red-name">Người chơi 2</strong></div></div>
+              <div id="red-counts" class="piece-counts" aria-label="Quân còn lại của phe Đỏ"></div>
+            </div>
+
+            <div class="board-frame">
+              <div class="rank-labels" aria-hidden="true"><span>9</span><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div id="board" class="board" role="grid" aria-label="Bàn cờ 9 nhân 9"></div>
+              <div class="file-labels" aria-hidden="true"><span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span><span>i</span></div>
+            </div>
+
+            <div class="player-ribbon blue-ribbon">
+              <div class="player-ident"><span class="ribbon-dot"></span><div><small>PHE XANH · ĐÍCH I9</small><strong id="blue-name">Người chơi 1</strong></div></div>
+              <div id="blue-counts" class="piece-counts" aria-label="Quân còn lại của phe Xanh"></div>
+            </div>
+          </section>
+
+          <aside class="game-sidebar">
+            <section class="status-panel" aria-live="polite">
+              <p class="panel-number">02 / TRẠNG THÁI TRẬN</p>
+              <div id="turn-marker" class="turn-marker"></div>
+              <h2 id="status-title">Bắt đầu trận đấu</h2>
+              <p id="status-detail">Chọn quân cờ để xem các ô có thể đi.</p>
+              <div id="role-label" class="role-label">CHẾ ĐỘ OFFLINE</div>
+              <div id="claim-actions" class="claim-actions" hidden>
+                <button id="claim-blue" class="button button-outline" type="button">Nhận phe Xanh</button>
+                <button id="claim-red" class="button button-outline" type="button">Nhận phe Đỏ</button>
+              </div>
+              <button id="rematch" class="button button-dark rematch-button" type="button" hidden>Chơi ván mới</button>
+              <button id="leave-seat" class="button button-outline leave-button" type="button" hidden>Rời ghế</button>
+            </section>
+
+            <section class="log-panel">
+              <div class="aside-heading"><h3>Diễn biến</h3><span id="move-total">00 NƯỚC</span></div>
+              <ol id="move-list" class="move-list"><li class="empty-log">Nước đầu tiên đang chờ được đi.</li></ol>
+            </section>
+
+            <section class="key-panel">
+              <div class="aside-heading"><h3>Chìa khóa trận đấu</h3><span>Đ · L · K</span></div>
+              <div class="rule-chain"><span>ĐẤM <b>Đ</b></span><i>→</i><span>KÉO <b>K</b></span></div>
+              <div class="rule-chain"><span>KÉO <b>K</b></span><i>→</i><span>LÁ <b>L</b></span></div>
+              <div class="rule-chain"><span>LÁ <b>L</b></span><i>→</i><span>ĐẤM <b>Đ</b></span></div>
+              <p>Cùng loại chặn nhau. Ăn hết một loại quân của đối thủ hoặc vào ô đích để thắng.</p>
+            </section>
+          </aside>
         </div>
-      </header>
+      </section>
 
-      <main class="layout">
-        <section class="board-panel" aria-label="Bàn cờ">
-          <div class="panel-heading">
-            <div>
-              <span class="eyebrow">VÁN ĐẤU TRỰC TIẾP</span>
-              <h2>Tiến tới ô đích</h2>
-            </div>
-            <span id="connection" class="connection">Đang kết nối…</span>
-          </div>
+      <section id="luat-choi" class="rules-section">
+        <div><span class="panel-number">03 / LUẬT CHƠI</span><h2>Đơn giản để bắt đầu.<br /><em>Đủ sâu để đấu trí.</em></h2></div>
+        <div class="rule-notes">
+          <p><b>01.</b> Mỗi lượt, di chuyển một quân đúng một ô theo ngang, dọc hoặc chéo.</p>
+          <p><b>02.</b> Đấm ăn Kéo, Kéo ăn Lá, Lá ăn Đấm. Quân cùng loại không ăn nhau.</p>
+          <p><b>03.</b> Phe Xanh tới i9, phe Đỏ tới a1, hoặc ăn hết một loại quân của đối thủ là thắng.</p>
+        </div>
+      </section>
+    </main>
 
-          <div class="board-wrap">
-            <div class="rank-labels" aria-hidden="true">
-              <span>8</span><span>7</span><span>6</span><span>5</span>
-              <span>4</span><span>3</span><span>2</span><span>1</span>
-            </div>
-            <div id="board" class="board" role="grid" aria-label="Bàn cờ 8 nhân 8"></div>
-            <div class="file-labels" aria-hidden="true">
-              <span>a</span><span>b</span><span>c</span><span>d</span>
-              <span>e</span><span>f</span><span>g</span><span>h</span>
-            </div>
-          </div>
-
-          <div class="board-footer">
-            <span><i class="legend-dot move-dot"></i> Ô có thể đi</span>
-            <span><i class="legend-dot capture-dot"></i> Có thể ăn</span>
-            <span><i class="legend-dot goal-dot"></i> Ô chiến thắng</span>
-          </div>
-        </section>
-
-        <aside class="sidebar">
-          <section class="card status-card" aria-live="polite">
-            <span class="eyebrow">TRẠNG THÁI VÁN ĐẤU</span>
-            <h2 id="status-title">Đang tải phòng…</h2>
-            <p id="status-detail">Đang đồng bộ bàn cờ.</p>
-            <div id="turn-badge" class="turn-badge">—</div>
-          </section>
-
-          <section class="card seats-card">
-            <div class="card-heading">
-              <span class="eyebrow">NGƯỜI CHƠI</span>
-              <span id="my-role" class="my-role">Khán giả</span>
-            </div>
-            <div class="seat seat-blue">
-              <div class="seat-symbol">●</div>
-              <div class="seat-info"><strong>Xanh · Player 1</strong><small>Đích h8</small></div>
-              <span id="p1-seat" class="seat-state">Trống</span>
-            </div>
-            <div class="seat seat-red">
-              <div class="seat-symbol">●</div>
-              <div class="seat-info"><strong>Đỏ · Player 2</strong><small>Đích a1</small></div>
-              <span id="p2-seat" class="seat-state">Trống</span>
-            </div>
-            <div class="seat-actions">
-              <button id="join-p1" class="button button-blue" type="button" disabled>Nhận phe Xanh</button>
-              <button id="join-p2" class="button button-red" type="button" disabled>Nhận phe Đỏ</button>
-              <button id="leave-seat" class="button button-ghost" type="button" hidden>Rời ghế</button>
-            </div>
-            <p class="seat-note">Người vào trước tự nhận phe Xanh. Mở lời mời trong trình duyệt khác để chơi cùng bạn.</p>
-          </section>
-
-          <section class="card rules-card">
-            <span class="eyebrow">LUẬT NHANH</span>
-            <h2>Mỗi lượt một bước</h2>
-            <p>Chọn quân của bạn rồi đi 1 ô theo bất kỳ hướng nào. Đưa quân tới ô đích của mình hoặc loại hết quân đối phương để thắng.</p>
-            <div class="rps-row"><span>✊ Đấm</span><span>ăn</span><span>✌️ Kéo</span></div>
-            <div class="rps-row"><span>✌️ Kéo</span><span>ăn</span><span>✋ Lá</span></div>
-            <div class="rps-row"><span>✋ Lá</span><span>ăn</span><span>✊ Đấm</span></div>
-            <p class="tie-note">Quân cùng loại không thể ăn nhau.</p>
-          </section>
-
-          <button id="reset" class="button reset-button" type="button" disabled>Chơi lại</button>
-        </aside>
-      </main>
-      <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <footer class="footer"><span>OTTv2 · OẲN TÙ TÌ TRÊN BÀN CỜ</span><span>CHƠI HAY, CHƠI ĐẸP.</span></footer>
   </body>
 </html>

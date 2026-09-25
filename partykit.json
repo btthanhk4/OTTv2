@@ -1,0 +1,5 @@
+{
+  "name": "ottv2",
+  "main": "server/party.js",
+  "compatibilityDate": "2026-09-25"
+}

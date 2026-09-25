@@ -1,153 +1,213 @@
-import { playhtml } from 'https://unpkg.com/playhtml';
+import { applyMove, BOARD_SIZE, legalMoves, newGame, pieceCounts, SIDE_LABEL, squareName, TYPE_LABEL, TYPES } from './rules.js';
+import { OnlineSession, joinPlayhtmlPresence } from './online.js';
+import { PlayhtmlSession } from './playhtml-session.js';
 
-const SIZE = 8;
-const SYMBOL = { rock: '✊', paper: '✋', scissors: '✌️' };
-const TYPE_NAME = { rock: 'Đấm', paper: 'Lá', scissors: 'Kéo' };
-const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
-const SIDE_NAME = { p1: 'Xanh', p2: 'Đỏ' };
-const START_P1 = [
-  [4, 4, 'rock'], [4, 5, 'scissors'], [5, 3, 'paper'],
-  [5, 4, 'rock'], [5, 5, 'paper'], [6, 3, 'scissors'],
-  [6, 4, 'rock'],
-];
-
+const $ = (selector) => document.querySelector(selector);
 const els = {
-  board: document.querySelector('#board'),
-  roomCode: document.querySelector('#room-code'),
-  copyLink: document.querySelector('#copy-link'),
-  connection: document.querySelector('#connection'),
-  statusTitle: document.querySelector('#status-title'),
-  statusDetail: document.querySelector('#status-detail'),
-  turnBadge: document.querySelector('#turn-badge'),
-  myRole: document.querySelector('#my-role'),
-  p1Seat: document.querySelector('#p1-seat'),
-  p2Seat: document.querySelector('#p2-seat'),
-  joinP1: document.querySelector('#join-p1'),
-  joinP2: document.querySelector('#join-p2'),
-  leaveSeat: document.querySelector('#leave-seat'),
-  reset: document.querySelector('#reset'),
-  toast: document.querySelector('#toast'),
+  home: $('#home-view'), gameView: $('#game-view'), board: $('#board'),
+  name: $('#player-name'), roomInput: $('#room-input'), create: $('#create-online'),
+  join: $('#join-online'), offline: $('#start-offline'), back: $('#back-home'),
+  mode: $('#mode-label'), round: $('#round-label'), connection: $('#connection-label'),
+  invite: $('#copy-invite'), blueName: $('#blue-name'), redName: $('#red-name'),
+  blueCounts: $('#blue-counts'), redCounts: $('#red-counts'),
+  marker: $('#turn-marker'), title: $('#status-title'), detail: $('#status-detail'),
+  role: $('#role-label'), claimActions: $('#claim-actions'), claimBlue: $('#claim-blue'),
+  claimRed: $('#claim-red'), rematch: $('#rematch'), leave: $('#leave-seat'),
+  moveTotal: $('#move-total'), moveList: $('#move-list'), toast: $('#toast'),
 };
 
-function randomId() {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+const LETTER = { rock: 'Đ', paper: 'L', scissors: 'K' };
+const ICON = {
+  rock: '<path d="M7 12 9 6l6-2 5 5 2 6-5 6H9l-4-5 2-4Z"/><path d="m9 6 4 6m2-8-2 8m7-3-7 3m4 9-4-9"/>',
+  paper: '<rect x="7" y="3" width="14" height="20" rx="2"/><path d="M10 8h8M10 12h8M10 16h6"/>',
+  scissors: '<circle cx="7" cy="7" r="3"/><circle cx="7" cy="19" r="3"/><path d="m10 9 12 11M10 17 22 4"/>',
+};
 
-const params = new URLSearchParams(location.search);
-let roomCode = params.get('room')?.toUpperCase() ?? '';
-if (!/^[A-Z0-9-]{4,20}$/.test(roomCode)) {
-  roomCode = randomId().replaceAll('-', '').slice(0, 6).toUpperCase();
-  params.set('room', roomCode);
-  history.replaceState(null, '', `${location.pathname}?${params}${location.hash}`);
-}
-els.roomCode.textContent = roomCode;
-
-// PlayHTML gán một publicKey bền vững cho mỗi hồ sơ trình duyệt.
-let clientId = null;
-
-function createBoard() {
-  const board = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
-  for (const [row, col, type] of START_P1) {
-    board[row][col] = { owner: 'p1', type };
-    // Phản xạ chính xác qua đường chéo phụ h1–a8.
-    board[7 - col][7 - row] = { owner: 'p2', type };
-  }
-  return board;
-}
-
-function initialGame() {
-  return {
-    board: createBoard(),
-    turn: 'p1',
-    winner: null,
-    lastMove: null,
-    moveNumber: 0,
-  };
-}
-
-let channel = null;
-const seatChannels = { p1: null, p2: null };
-const seats = { p1: null, p2: null };
+let mode = null;
 let game = null;
+let room = null;
+let session = null;
+let onlineState = null;
 let selected = null;
-let optedOut = false;
-let claimTimer = null;
+let pendingMove = false;
 let toastTimer = null;
-let lastSnapshot = '';
-
-function mySide() {
-  if (!game) return null;
-  if (seats.p1 === clientId) return 'p1';
-  if (seats.p2 === clientId) return 'p2';
-  return null;
-}
-
-function onlineTokens() {
-  if (!channel) return new Set();
-  return new Set(
-    [...playhtml.presence.getPresences().values()]
-      .map((person) => person.rpsSeat?.token)
-      .filter(Boolean),
-  );
-}
+let playhtmlStarted = false;
+let presenceRoom = null;
+let connectionStatus = 'Sẵn sàng';
+let offlineRound = 1;
 
 function notify(message) {
   els.toast.textContent = message;
   els.toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 3200);
+  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 3600);
 }
 
-function coordinate(row, col) {
-  return `${'abcdefgh'[col]}${8 - row}`;
+function savedName() {
+  const name = els.name.value.trim().slice(0, 18) || 'Người chơi';
+  localStorage.setItem('ottv2-name', name);
+  return name;
 }
 
-function getLegalMoves(board, row, col) {
-  const piece = board[row]?.[col];
-  const moves = new Map();
-  if (!piece) return moves;
-
-  for (let dr = -1; dr <= 1; dr += 1) {
-    for (let dc = -1; dc <= 1; dc += 1) {
-      if (dr === 0 && dc === 0) continue;
-      const nr = row + dr;
-      const nc = col + dc;
-      if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) continue;
-      const occupant = board[nr][nc];
-      if (!occupant) moves.set(`${nr},${nc}`, 'move');
-      else if (occupant.owner !== piece.owner && BEATS[piece.type] === occupant.type) {
-        moves.set(`${nr},${nc}`, 'capture');
-      }
-    }
+function identityFor(code) {
+  const key = `ottv2-token:${code}`;
+  let token = localStorage.getItem(key);
+  if (!token) {
+    token = crypto.randomUUID();
+    localStorage.setItem(key, token);
   }
-  return moves;
+  return token;
+}
+
+function roomCode() {
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[byte % 32]).join('');
+}
+
+function mySide() {
+  return mode === 'offline' ? game?.turn : onlineState?.role;
+}
+
+function canAct() {
+  if (!game || game.winner || pendingMove) return false;
+  if (mode === 'offline') return true;
+  const seats = onlineState?.seats;
+  return connectionStatus === 'Đã kết nối' && onlineState?.role === game.turn &&
+    Boolean(seats?.p1?.online && seats?.p2?.online);
+}
+
+function showGame() {
+  els.home.hidden = true;
+  els.gameView.hidden = false;
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function showHome() {
+  session?.close();
+  session = null;
+  mode = null;
+  game = null;
+  room = null;
+  onlineState = null;
+  selected = null;
+  pendingMove = false;
+  els.gameView.hidden = true;
+  els.home.hidden = false;
+  const url = new URL(location.href);
+  url.searchParams.delete('room');
+  history.replaceState(null, '', url);
+}
+
+function startOffline() {
+  session?.close();
+  session = null;
+  mode = 'offline';
+  room = null;
+  onlineState = null;
+  game = newGame();
+  offlineRound = 1;
+  selected = null;
+  pendingMove = false;
+  connectionStatus = 'Cùng một máy';
+  showGame();
+  render();
+}
+
+function startOnline(code) {
+  if (!/^[A-Z0-9]{4,12}$/.test(code)) {
+    notify('Mã phòng cần có 4–12 chữ hoặc số.');
+    return;
+  }
+  const name = savedName();
+  const params = new URLSearchParams(location.search);
+  const usePartyKit = params.has('server') ||
+    (params.get('backend') !== 'playhtml' &&
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1'));
+  if (playhtmlStarted && presenceRoom && presenceRoom !== code) {
+    const next = new URL(location.href);
+    next.searchParams.set('room', code);
+    location.assign(next.href);
+    return;
+  }
+  session?.close();
+  mode = 'online';
+  room = code;
+  game = null;
+  onlineState = null;
+  selected = null;
+  pendingMove = false;
+  connectionStatus = 'Đang kết nối';
+  const url = new URL(location.href);
+  url.searchParams.set('room', code);
+  history.replaceState(null, '', url);
+  showGame();
+  render();
+  const Session = usePartyKit ? OnlineSession : PlayhtmlSession;
+  session = new Session({
+    room: code,
+    name,
+    token: identityFor(code),
+    onState: (state) => {
+      const revisionChanged = game?.revision !== state.game.revision || onlineState?.round !== state.round;
+      onlineState = state;
+      game = state.game;
+      if (revisionChanged) selected = null;
+      pendingMove = false;
+      render();
+      if (usePartyKit && !playhtmlStarted) {
+        playhtmlStarted = true;
+        presenceRoom = code;
+        joinPlayhtmlPresence(code, name).catch((error) => {
+          console.warn('PlayHTML presence:', error);
+        });
+      } else if (!usePartyKit) {
+        playhtmlStarted = true;
+        presenceRoom = code;
+      }
+    },
+    onStatus: (status) => {
+      connectionStatus = status;
+      if (status !== 'Đã kết nối') pendingMove = false;
+      render();
+    },
+    onError: (message) => {
+      pendingMove = false;
+      selected = null;
+      notify(message);
+      render();
+    },
+  });
+  session.connect();
+}
+
+function countMarkup(side) {
+  const counts = pieceCounts(game.board)[side];
+  return TYPES.map((type) => `<span class="piece-count ${counts[type] ? '' : 'zero'}">${LETTER[type]} × ${counts[type]}<span>${TYPE_LABEL[type]}</span></span>`).join('');
 }
 
 function renderBoard() {
-  if (!game) return;
-  const side = mySide();
-  const canPlay = side === game.turn && !game.winner;
-  const moves = selected && canPlay
-    ? getLegalMoves(game.board, selected.row, selected.col)
+  if (!game) {
+    els.board.replaceChildren();
+    return;
+  }
+  const legal = selected && canAct()
+    ? new Map(legalMoves(game.board, selected.row, selected.col).map((move) => [`${move.row},${move.col}`, move.kind]))
     : new Map();
   const fragment = document.createDocumentFragment();
-
-  for (let row = 0; row < SIZE; row += 1) {
-    for (let col = 0; col < SIZE; col += 1) {
-      const square = document.createElement('button');
+  for (let row = 0; row < BOARD_SIZE; row += 1) {
+    for (let col = 0; col < BOARD_SIZE; col += 1) {
       const piece = game.board[row][col];
-      const key = `${row},${col}`;
-      const move = moves.get(key);
-      const coord = coordinate(row, col);
+      const square = document.createElement('button');
+      const move = legal.get(`${row},${col}`);
       square.type = 'button';
-      square.dataset.row = String(row);
-      square.dataset.col = String(col);
+      square.dataset.row = row;
+      square.dataset.col = col;
       square.className = `square ${(row + col) % 2 ? 'dark' : 'light'}`;
       square.setAttribute('role', 'gridcell');
-      square.setAttribute('aria-label', `${coord}${piece ? `, ${TYPE_NAME[piece.type]} phe ${SIDE_NAME[piece.owner]}` : ', trống'}${move ? move === 'capture' ? ', có thể ăn' : ', có thể đi' : ''}`);
-
-      if (row === 7 && col === 0) square.classList.add('goal-red');
-      if (row === 0 && col === 7) square.classList.add('goal-blue');
+      square.setAttribute('aria-label', `${squareName(row, col)}${piece ? `, ${TYPE_LABEL[piece.type]} phe ${SIDE_LABEL[piece.owner]}` : ', ô trống'}${move === 'capture' ? ', có thể ăn' : move ? ', có thể đi' : ''}`);
+      if (row === 0 && col === 8) square.classList.add('goal-blue');
+      if (row === 8 && col === 0) square.classList.add('goal-red');
       if (game.lastMove && (
         (game.lastMove.from[0] === row && game.lastMove.from[1] === col) ||
         (game.lastMove.to[0] === row && game.lastMove.to[1] === col)
@@ -159,11 +219,11 @@ function renderBoard() {
       if (move) square.classList.add(`legal-${move}`);
       if (piece) {
         square.classList.add('has-piece');
-        const token = document.createElement('span');
-        token.className = `piece ${piece.owner}`;
-        token.textContent = SYMBOL[piece.type];
-        token.setAttribute('aria-hidden', 'true');
-        square.append(token);
+        const chip = document.createElement('span');
+        chip.className = `piece ${piece.owner}`;
+        chip.setAttribute('aria-hidden', 'true');
+        chip.innerHTML = `<svg viewBox="0 0 28 28" aria-hidden="true">${ICON[piece.type]}</svg><span class="type-letter">${LETTER[piece.type]}</span>`;
+        square.append(chip);
       }
       fragment.append(square);
     }
@@ -171,236 +231,171 @@ function renderBoard() {
   els.board.replaceChildren(fragment);
 }
 
-function renderSeats() {
-  if (!game) return;
-  const online = onlineTokens();
-  const side = mySide();
-  for (const role of ['p1', 'p2']) {
-    const node = role === 'p1' ? els.p1Seat : els.p2Seat;
-    const holder = seats[role];
-    node.className = 'seat-state';
-    if (!holder) node.textContent = 'Trống';
-    else if (holder === clientId) {
-      node.textContent = 'Bạn';
-      node.classList.add('you');
-    } else if (online.has(holder)) node.textContent = 'Đang chơi';
-    else {
-      node.textContent = 'Vắng mặt';
-      node.classList.add('away');
-    }
+function winDetail() {
+  if (game.winReason === 'goal') return `Đã đưa quân tới ô ${game.winner === 'p1' ? 'i9' : 'a1'}.`;
+  if (game.winReason?.startsWith('eliminate:')) {
+    return `Đã ăn hết quân ${TYPE_LABEL[game.winReason.split(':')[1]]} của đối thủ.`;
   }
-
-  els.myRole.textContent = side ? `Bạn: phe ${SIDE_NAME[side]}` : 'Khán giả';
-  els.joinP1.disabled = Boolean(side || (seats.p1 && online.has(seats.p1)));
-  els.joinP2.disabled = Boolean(side || (seats.p2 && online.has(seats.p2)));
-  els.joinP1.textContent = seats.p1 ? 'Nhận ghế Xanh' : 'Nhận phe Xanh';
-  els.joinP2.textContent = seats.p2 ? 'Nhận ghế Đỏ' : 'Nhận phe Đỏ';
-  els.leaveSeat.hidden = !side;
-  els.reset.disabled = !side;
+  if (game.winReason === 'repetition') return 'Thế cờ lặp lại ba lần.';
+  return '80 lượt đi liên tiếp không có quân bị ăn.';
 }
 
 function renderStatus() {
-  if (!game) return;
-  const side = mySide();
-  if (game.winner) {
-    els.statusTitle.textContent = `Phe ${SIDE_NAME[game.winner]} chiến thắng!`;
-    els.statusDetail.textContent = game.winner === side
-      ? 'Chúc mừng! Nhấn Chơi lại để bắt đầu ván mới.'
-      : 'Ván đấu đã kết thúc. Nhấn Chơi lại để đấu tiếp.';
-    els.turnBadge.textContent = 'Ván đấu kết thúc';
-    els.turnBadge.className = `turn-badge ${game.winner}`;
+  els.marker.className = `turn-marker ${game?.winner === 'draw' ? 'draw' : game?.turn === 'p2' ? 'red' : ''}`;
+  if (!game) {
+    els.title.textContent = connectionStatus === 'Mất kết nối' ? 'Không thể mở phòng' : 'Đang mở phòng…';
+    els.detail.textContent = connectionStatus === 'Mất kết nối'
+      ? 'Kiểm tra mạng rồi tải lại trang để thử lại.'
+      : 'Kết nối tới máy chủ để nhận bàn cờ và ghế chơi.';
+    els.role.textContent = 'ĐANG KẾT NỐI';
+    els.claimActions.hidden = true;
+    els.rematch.hidden = true;
+    els.leave.hidden = true;
     return;
   }
+  if (game.winner) {
+    els.title.textContent = game.winner === 'draw' ? 'Ván đấu hòa.' : `Phe ${SIDE_LABEL[game.winner]} chiến thắng!`;
+    els.detail.textContent = winDetail();
+  } else if (mode === 'online' && (!onlineState?.seats?.p1?.online || !onlineState?.seats?.p2?.online)) {
+    els.title.textContent = 'Đang chờ đối thủ';
+    els.detail.textContent = 'Gửi liên kết phòng cho bạn bè. Hai ghế cần có người trước khi đi quân.';
+  } else {
+    els.title.textContent = `Lượt phe ${SIDE_LABEL[game.turn]}`;
+    els.detail.textContent = canAct()
+      ? 'Chọn quân của mình, rồi chọn ô xanh để đi hoặc ô đỏ để ăn.'
+      : mode === 'online' && !onlineState?.role
+        ? 'Bạn đang xem trận đấu. Ghế trống có thể nhận sau khi người chơi rời phòng.'
+        : 'Đang chờ nước đi của đối thủ.';
+  }
+  els.role.textContent = mode === 'offline' ? 'CHẾ ĐỘ OFFLINE · CÙNG MỘT MÁY'
+    : onlineState?.role ? `BẠN CẦM PHE ${SIDE_LABEL[onlineState.role].toUpperCase()}`
+      : `KHÁN GIẢ · ${onlineState?.spectators ?? 0} NGƯỜI XEM`;
+  els.claimActions.hidden = mode !== 'online' || Boolean(onlineState?.role);
+  els.claimBlue.hidden = !(onlineState?.seats?.p1?.available ?? true);
+  els.claimRed.hidden = !(onlineState?.seats?.p2?.available ?? true);
+  els.rematch.hidden = mode === 'online' && !onlineState?.role;
+  els.rematch.textContent = game.winner
+    ? mode === 'online' && onlineState?.rematchVotes?.includes(onlineState.role)
+      ? 'Đã đề nghị · chờ đối thủ' : 'Chơi ván mới'
+    : mode === 'offline' ? 'Bắt đầu lại' : 'Chơi ván mới';
+  els.rematch.disabled = mode === 'online' && (!game.winner || onlineState?.rematchVotes?.includes(onlineState.role));
+  els.leave.hidden = mode !== 'online' || !onlineState?.role;
+}
 
-  els.statusTitle.textContent = `Lượt của phe ${SIDE_NAME[game.turn]}`;
-  els.turnBadge.textContent = game.turn === side ? 'ĐẾN LƯỢT BẠN' : `LƯỢT ${SIDE_NAME[game.turn].toUpperCase()}`;
-  els.turnBadge.className = `turn-badge ${game.turn}`;
-  if (!side) els.statusDetail.textContent = 'Bạn đang xem trận đấu. Nhận một ghế trống để chơi.';
-  else if (game.turn === side) els.statusDetail.textContent = 'Chọn một quân của bạn, sau đó chọn ô được tô sáng.';
-  else els.statusDetail.textContent = 'Đang chờ đối thủ thực hiện nước đi.';
+function renderLog() {
+  if (!game) {
+    els.moveTotal.textContent = '00 NƯỚC';
+    els.moveList.innerHTML = '<li class="empty-log">Đang chờ bàn cờ…</li>';
+    return;
+  }
+  els.moveTotal.textContent = `${String(game.revision).padStart(2, '0')} NƯỚC`;
+  els.moveList.replaceChildren();
+  if (!game.history.length) {
+    const empty = document.createElement('li');
+    empty.className = 'empty-log';
+    empty.textContent = 'Nước đầu tiên đang chờ được đi.';
+    els.moveList.append(empty);
+    return;
+  }
+  for (const move of [...game.history].reverse()) {
+    const item = document.createElement('li');
+    const side = document.createElement('span');
+    side.className = 'move-side';
+    side.textContent = `${move.side === 'p1' ? 'Xanh' : 'Đỏ'} · ${TYPE_LABEL[move.type]}`;
+    const notation = document.createElement('span');
+    notation.textContent = move.notation;
+    if (move.captured) notation.className = 'capture-mark';
+    item.append(side, notation);
+    els.moveList.append(item);
+  }
 }
 
 function render() {
-  if (!game) return;
-  if (selected && (
-    game.turn !== mySide() || game.winner ||
-    game.board[selected.row]?.[selected.col]?.owner !== mySide()
-  )) selected = null;
-  renderBoard();
-  renderSeats();
-  renderStatus();
-}
-
-function scheduleAutoClaim(delay = 300) {
-  clearTimeout(claimTimer);
-  if (optedOut || !game || mySide()) return;
-  const role = !seats.p1 ? 'p1' : !seats.p2 ? 'p2' : null;
-  if (role) claimTimer = setTimeout(() => claimSeat(role), delay);
-}
-
-function claimSeat(role) {
-  if (!seatChannels[role]) return;
-  const online = onlineTokens();
-  const holder = seatChannels[role].getData().holder;
-  if (holder && holder !== clientId && online.has(holder)) return;
-  const other = role === 'p1' ? 'p2' : 'p1';
-  if (seatChannels[other].getData().holder === clientId) {
-    seatChannels[other].setData((draft) => { draft.holder = null; });
+  els.mode.textContent = mode === 'online' ? `ONLINE / ${room}` : 'OFFLINE';
+  els.round.textContent = `VÁN ${String(mode === 'online' ? onlineState?.round || 1 : offlineRound).padStart(2, '0')}`;
+  els.connection.textContent = connectionStatus;
+  els.connection.classList.toggle('offline', mode === 'online' && connectionStatus !== 'Đã kết nối');
+  els.invite.hidden = mode !== 'online';
+  if (game) {
+    els.blueName.textContent = mode === 'online'
+      ? onlineState?.seats?.p1?.name || 'Chờ người chơi'
+      : 'Người chơi 1';
+    els.redName.textContent = mode === 'online'
+      ? onlineState?.seats?.p2?.name || 'Chờ người chơi'
+      : 'Người chơi 2';
+    els.blueCounts.innerHTML = countMarkup('p1');
+    els.redCounts.innerHTML = countMarkup('p2');
+  } else {
+    els.blueName.textContent = 'Chờ người chơi';
+    els.redName.textContent = 'Chờ người chơi';
+    els.blueCounts.replaceChildren();
+    els.redCounts.replaceChildren();
   }
-  seatChannels[role].setData((draft) => { draft.holder = clientId; });
-  optedOut = false;
-}
-
-function movePiece(from, to) {
-  if (!channel) return;
-  const side = mySide();
-  if (!side) return;
-  channel.setData((draft) => {
-    if (draft.winner || draft.turn !== side || seatChannels[side].getData().holder !== clientId) return;
-    const source = draft.board[from.row]?.[from.col];
-    if (!source || source.owner !== side) return;
-    const legal = getLegalMoves(draft.board, from.row, from.col);
-    if (!legal.has(`${to.row},${to.col}`)) return;
-    const movingType = source.type;
-
-    // PlayHTML khuyến nghị splice để cập nhật ô trong mảng đồng bộ.
-    draft.board[from.row].splice(from.col, 1, null);
-    draft.board[to.row].splice(to.col, 1, { owner: side, type: movingType });
-    draft.lastMove = { from: [from.row, from.col], to: [to.row, to.col] };
-    draft.moveNumber += 1;
-
-    const reachedGoal = side === 'p1'
-      ? to.row === 0 && to.col === 7
-      : to.row === 7 && to.col === 0;
-    const opponent = side === 'p1' ? 'p2' : 'p1';
-    const opponentRemains = draft.board.some((line) => line.some((piece) => piece?.owner === opponent));
-    if (reachedGoal || !opponentRemains) draft.winner = side;
-    else draft.turn = opponent;
-  });
-  selected = null;
-  render();
+  if (selected && (!canAct() || game?.board[selected.row]?.[selected.col]?.owner !== mySide())) selected = null;
+  renderBoard();
+  renderStatus();
+  renderLog();
 }
 
 els.board.addEventListener('click', (event) => {
   const square = event.target.closest('.square');
-  if (!square || !game || game.winner) return;
-  const side = mySide();
-  if (!side || game.turn !== side) return;
-
+  if (!square || !canAct()) return;
   const row = Number(square.dataset.row);
   const col = Number(square.dataset.col);
   if (selected) {
-    const legal = getLegalMoves(game.board, selected.row, selected.col);
-    if (legal.has(`${row},${col}`)) {
-      movePiece(selected, { row, col });
+    const legal = legalMoves(game.board, selected.row, selected.col)
+      .some((move) => move.row === row && move.col === col);
+    if (legal) {
+      const from = [selected.row, selected.col];
+      const to = [row, col];
+      selected = null;
+      if (mode === 'offline') {
+        const result = applyMove(game, game.turn, from, to);
+        if (result.ok) game = result.state;
+        else notify(result.error);
+      } else {
+        pendingMove = true;
+        if (!session.send({ type: 'move', from, to, revision: game.revision })) {
+          pendingMove = false;
+          notify('Mất kết nối. Hãy chờ kết nối lại.');
+        }
+      }
+      render();
       return;
     }
   }
-  selected = game.board[row][col]?.owner === side ? { row, col } : null;
+  selected = game.board[row][col]?.owner === mySide() ? { row, col } : null;
   renderBoard();
 });
 
-els.joinP1.addEventListener('click', () => claimSeat('p1'));
-els.joinP2.addEventListener('click', () => claimSeat('p2'));
-els.leaveSeat.addEventListener('click', () => {
-  const side = mySide();
-  if (!side || !seatChannels[side]) return;
-  optedOut = true;
-  selected = null;
-  if (seatChannels[side].getData().holder === clientId) {
-    seatChannels[side].setData((draft) => { draft.holder = null; });
-  }
+els.create.addEventListener('click', () => startOnline(roomCode()));
+els.join.addEventListener('click', () => startOnline(els.roomInput.value.trim().toUpperCase()));
+els.roomInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') startOnline(els.roomInput.value.trim().toUpperCase());
 });
-els.reset.addEventListener('click', () => {
-  if (!channel || !mySide()) return;
-  selected = null;
-  channel.setData((draft) => {
-    draft.board = createBoard();
-    draft.turn = 'p1';
-    draft.winner = null;
-    draft.lastMove = null;
-    draft.moveNumber = 0;
-  });
+els.offline.addEventListener('click', startOffline);
+els.back.addEventListener('click', showHome);
+els.invite.addEventListener('click', async () => {
+  const url = new URL(location.href);
+  try { await navigator.clipboard.writeText(url.href); notify('Đã sao chép liên kết phòng.'); }
+  catch { notify(`Liên kết phòng: ${url.href}`); }
 });
-els.copyLink.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(location.href);
-    notify('Đã sao chép liên kết phòng.');
-  } catch {
-    notify(`Liên kết phòng: ${location.href}`);
-  }
-});
-
-async function start() {
-  try {
-    await playhtml.init({ room: `rps-${roomCode}` });
-    clientId = playhtml.presence.getMyIdentity().publicKey;
-    const joinedAt = Date.now();
-    playhtml.presence.setMyPresence('rpsSeat', { token: clientId, joinedAt });
-    // Hai máy cùng mở phòng cần tạo kênh theo thứ tự để PlayHTML không
-    // khởi tạo hai bản mặc định cho cùng một kênh trong cùng thời điểm.
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const arrivals = [...playhtml.presence.getPresences().values()]
-      .filter((person) => person.rpsSeat?.token)
-      .sort((a, b) =>
-        (a.rpsSeat.joinedAt - b.rpsSeat.joinedAt) ||
-        a.rpsSeat.token.localeCompare(b.rpsSeat.token),
-      );
-    const rank = Math.max(0, arrivals.findIndex((person) => person.rpsSeat.token === clientId));
-    if (rank) await new Promise((resolve) => setTimeout(resolve, rank * 1400));
-    channel = playhtml.createPageData('rps-game-v2', initialGame());
-    seatChannels.p1 = playhtml.createPageData('rps-seat-p1-v2', { holder: null });
-    seatChannels.p2 = playhtml.createPageData('rps-seat-p2-v2', { holder: null });
-    game = channel.getData();
-    seats.p1 = seatChannels.p1.getData().holder;
-    seats.p2 = seatChannels.p2.getData().holder;
-    lastSnapshot = JSON.stringify({ game, seats });
-    channel.onUpdate((nextGame) => {
-      game = nextGame;
-      lastSnapshot = JSON.stringify({ game, seats });
-      render();
-      scheduleAutoClaim();
-    });
-    for (const role of ['p1', 'p2']) {
-      seatChannels[role].onUpdate((record) => {
-        seats[role] = record.holder;
-        lastSnapshot = JSON.stringify({ game, seats });
-        render();
-        scheduleAutoClaim();
-      });
-    }
-    // Sau hai lượt ghi gần như đồng thời, getData() có thể cập nhật trước
-    // callback. Đối chiếu bản mới để ghế và lượt luôn hội tụ trên mọi máy.
-    setInterval(() => {
-      const latest = channel.getData();
-      const latestSeats = {
-        p1: seatChannels.p1.getData().holder,
-        p2: seatChannels.p2.getData().holder,
-      };
-      const snapshot = JSON.stringify({ game: latest, seats: latestSeats });
-      if (snapshot === lastSnapshot) return;
-      game = latest;
-      seats.p1 = latestSeats.p1;
-      seats.p2 = latestSeats.p2;
-      lastSnapshot = snapshot;
-      render();
-      scheduleAutoClaim();
-    }, 250);
-    playhtml.presence.onPresenceChange('rpsSeat', () => {
-      renderSeats();
-      scheduleAutoClaim();
-    });
-    els.connection.textContent = 'Đã đồng bộ';
-    els.connection.className = 'connection online';
+els.rematch.addEventListener('click', () => {
+  if (mode === 'offline') {
+    game = newGame();
+    offlineRound += 1;
+    selected = null;
     render();
-    scheduleAutoClaim(700);
-  } catch (error) {
-    console.error('Không thể kết nối PlayHTML:', error);
-    els.connection.textContent = 'Mất kết nối';
-    els.connection.className = 'connection offline';
-    els.statusTitle.textContent = 'Không thể mở phòng';
-    els.statusDetail.textContent = 'Kiểm tra kết nối mạng rồi tải lại trang. Hãy chạy trang qua một máy chủ HTTP.';
+  } else if (game?.winner && onlineState?.role) {
+    session.send({ type: 'rematch' });
   }
-}
+});
+els.leave.addEventListener('click', () => {
+  if (onlineState?.role) session.send({ type: 'leave' });
+});
+els.claimBlue.addEventListener('click', () => session?.send({ type: 'claim', side: 'p1' }));
+els.claimRed.addEventListener('click', () => session?.send({ type: 'claim', side: 'p2' }));
 
-start();
+els.name.value = localStorage.getItem('ottv2-name') || '';
+const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase();
+if (initialRoom) startOnline(initialRoom);

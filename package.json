@@ -1,0 +1,19 @@
+{
+  "name": "ottv2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "server": "partykit dev",
+    "deploy:server": "partykit deploy"
+  },
+  "devDependencies": {
+    "partykit": "^0.0.115",
+    "playwright": "^1.63.0"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0",
+    "undici": "^6.28.0"
+  }
+}
